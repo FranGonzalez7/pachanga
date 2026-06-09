@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -9,33 +10,75 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  // Servicio de autenticación que ya creamos
   final AuthService _authService = AuthService();
-
-  // "Cajas" que leen lo que el usuario escribe en cada campo
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  // Indica si estamos esperando respuesta de Firebase (para la ruedecita)
   bool _isLoading = false;
+  bool _isLogin = true; // true = iniciar sesión, false = registro
 
-  // Se llama cuando el usuario pulsa el botón de entrar
-  Future<void> _signIn() async {
+  // Muestra un mensaje deslizante en la parte inferior
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  // Traduce los códigos de error de Firebase a mensajes en español
+  String _errorMessage(String code) {
+    switch (code) {
+      case 'invalid-email':
+        return 'El correo electrónico no es válido.';
+      case 'user-not-found':
+        return 'No existe ninguna cuenta con ese correo.';
+      case 'wrong-password':
+      case 'invalid-credential':
+        return 'Correo o contraseña incorrectos.';
+      case 'email-already-in-use':
+        return 'Ya existe una cuenta con ese correo.';
+      case 'weak-password':
+        return 'La contraseña debe tener al menos 6 caracteres.';
+      default:
+        return 'Ha ocurrido un error. Inténtalo de nuevo.';
+    }
+  }
+
+  // Se ejecuta al pulsar el botón principal
+  Future<void> _submit() async {
     setState(() {
       _isLoading = true;
     });
 
-    await _authService.signIn(
-      _emailController.text.trim(),
-      _passwordController.text.trim(),
-    );
+    try {
+      final email = _emailController.text.trim();
+      final password = _passwordController.text.trim();
 
+      if (_isLogin) {
+        await _authService.signIn(email, password);
+      } else {
+        await _authService.signUp(email, password);
+      }
+    } on FirebaseAuthException catch (e) {
+      _showMessage(_errorMessage(e.code));
+    } catch (e) {
+      _showMessage('Ha ocurrido un error inesperado.');
+    } finally {
+      // Solo tocamos el estado si la pantalla sigue viva
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  // Alterna entre modo login y modo registro
+  void _toggleMode() {
     setState(() {
-      _isLoading = false;
+      _isLogin = !_isLogin;
     });
   }
 
-  // Limpieza cuando la pantalla se destruye
   @override
   void dispose() {
     _emailController.dispose();
@@ -73,9 +116,18 @@ class _LoginScreenState extends State<LoginScreen> {
             _isLoading
                 ? const CircularProgressIndicator()
                 : ElevatedButton(
-                    onPressed: _signIn,
-                    child: const Text('Iniciar sesión'),
+                    onPressed: _submit,
+                    child: Text(_isLogin ? 'Iniciar sesión' : 'Registrarse'),
                   ),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: _isLoading ? null : _toggleMode,
+              child: Text(
+                _isLogin
+                    ? '¿No tienes cuenta? Regístrate'
+                    : '¿Ya tienes cuenta? Inicia sesión',
+              ),
+            ),
           ],
         ),
       ),
