@@ -13,6 +13,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final AuthService _authService = AuthService();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _nameController = TextEditingController();
 
   bool _isLoading = false;
   bool _isLogin = true; // true = iniciar sesión, false = registro
@@ -56,11 +57,12 @@ class _LoginScreenState extends State<LoginScreen> {
       if (_isLogin) {
         await _authService.signIn(email, password);
       } else {
-        await _authService.signUp(email, password);
+        await _authService.signUp(email, password, _nameController.text.trim());
       }
     } on FirebaseAuthException catch (e) {
       _showMessage(_errorMessage(e.code));
     } catch (e) {
+      print('ERROR REAL: $e');
       _showMessage('Ha ocurrido un error inesperado.');
     } finally {
       // Solo tocamos el estado si la pantalla sigue viva
@@ -83,6 +85,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _nameController.dispose();
     super.dispose();
   }
 
@@ -95,6 +98,16 @@ class _LoginScreenState extends State<LoginScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            if (!_isLogin) ...[
+              TextField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Nombre',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
             TextField(
               controller: _emailController,
               decoration: const InputDecoration(
