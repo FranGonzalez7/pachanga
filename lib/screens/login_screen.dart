@@ -62,7 +62,6 @@ class _LoginScreenState extends State<LoginScreen> {
     } on FirebaseAuthException catch (e) {
       _showMessage(_errorMessage(e.code));
     } catch (e) {
-      print('ERROR REAL: $e');
       _showMessage('Ha ocurrido un error inesperado.');
     } finally {
       // Solo tocamos el estado si la pantalla sigue viva
