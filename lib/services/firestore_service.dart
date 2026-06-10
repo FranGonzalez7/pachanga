@@ -68,6 +68,13 @@ class FirestoreService {
     return group;
   }
 
+  // Lee un grupo por su ID; devuelve null si no existe
+  Future<Group?> getGroup(String groupId) async {
+    final doc = await _db.collection('groups').doc(groupId).get();
+    if (!doc.exists) return null;
+    return Group.fromMap(doc.id, doc.data()!);
+  }
+
   // Busca un grupo por su código y une al usuario como jugador.
   // Devuelve el grupo si se unió con éxito, o null si el código no existe.
   Future<Group?> joinGroupByCode(String joinCode, AppUser user) async {
@@ -122,5 +129,18 @@ class FirestoreService {
     }
 
     return Membership.fromMap(query.docs.first.data());
+  }
+
+  // Obtiene la membresía del usuario y su grupo de una vez
+  Future<({Membership membership, Group group})?> getUserMembershipAndGroup(
+    String uid,
+  ) async {
+    final membership = await getUserMembership(uid);
+    if (membership == null) return null;
+
+    final group = await getGroup(membership.groupId);
+    if (group == null) return null;
+
+    return (membership: membership, group: group);
   }
 }
