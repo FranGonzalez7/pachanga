@@ -4,8 +4,8 @@ import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../models/membership.dart';
 import 'login_screen.dart';
-import 'home_screen.dart';
 import 'welcome_screen.dart';
+import 'main_screen.dart';
 
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
@@ -67,7 +67,7 @@ class _AuthGateState extends State<AuthGate> {
             }
 
             if (membershipSnapshot.hasData && membershipSnapshot.data != null) {
-              return const HomeScreen();
+              return const MainScreen();
             } else {
               return WelcomeScreen(onGroupJoined: refresh);
             }
