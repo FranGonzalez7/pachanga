@@ -215,16 +215,25 @@ class FirestoreService {
     if (!doc.exists) return;
 
     final match = Match.fromMap(doc.id, doc.data()!);
-
-    // Creamos una copia de la lista de slots con el hueco actualizado
     final updatedSlots = List<Slot>.from(match.slots);
+
+    // Primero: quitamos a este jugador de cualquier hueco que ya ocupara
+    for (int i = 0; i < updatedSlots.length; i++) {
+      if (updatedSlots[i].playerId == playerId) {
+        updatedSlots[i] = updatedSlots[i].copyWith(
+          clearPlayer: true,
+          position: '',
+        );
+      }
+    }
+
+    // Después: lo colocamos en el hueco elegido
     updatedSlots[slotIndex] = updatedSlots[slotIndex].copyWith(
       playerId: playerId,
       playerName: playerName,
       position: position,
     );
 
-    // Guardamos solo el campo 'slots' actualizado
     await matchRef.update({
       'slots': updatedSlots.map((slot) => slot.toMap()).toList(),
     });
@@ -239,5 +248,33 @@ class FirestoreService {
         .get();
 
     return query.docs.map((doc) => Match.fromMap(doc.id, doc.data())).toList();
+  }
+
+  // Lee un partido por su ID
+  Future<Match?> getMatch(String matchId) async {
+    final doc = await _db.collection('matches').doc(matchId).get();
+    if (!doc.exists) return null;
+    return Match.fromMap(doc.id, doc.data()!);
+  }
+
+  // Saca a quien esté en un hueco (lo vacía)
+  Future<void> leaveSlot({
+    required String matchId,
+    required int slotIndex,
+  }) async {
+    final matchRef = _db.collection('matches').doc(matchId);
+    final doc = await matchRef.get();
+    if (!doc.exists) return;
+
+    final match = Match.fromMap(doc.id, doc.data()!);
+    final updatedSlots = List<Slot>.from(match.slots);
+    updatedSlots[slotIndex] = updatedSlots[slotIndex].copyWith(
+      clearPlayer: true,
+      position: '',
+    );
+
+    await matchRef.update({
+      'slots': updatedSlots.map((slot) => slot.toMap()).toList(),
+    });
   }
 }

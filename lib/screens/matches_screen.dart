@@ -80,12 +80,16 @@ class _MatchesScreenState extends State<MatchesScreen> {
                 leading: const Icon(Icons.sports_soccer),
                 title: Text(match.type),
                 subtitle: Text(_formatDate(match.scheduledAt)),
-                onTap: () {
-                  Navigator.of(context).push(
+                onTap: () async {
+                  await Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (context) => MatchFieldScreen(match: match),
+                      builder: (context) => MatchFieldScreen(
+                        match: match,
+                        currentMembership: _membership!,
+                      ),
                     ),
                   );
+                  _refreshMatches(); // al volver, refrescamos la lista
                 },
               );
             },
