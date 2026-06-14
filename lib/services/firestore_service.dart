@@ -3,6 +3,8 @@ import '../models/app_user.dart';
 import 'dart:math';
 import '../models/group.dart';
 import '../models/membership.dart';
+import '../models/match.dart';
+import '../models/slot.dart';
 
 class FirestoreService {
   // Referencia a la base de datos
@@ -142,5 +144,72 @@ class FirestoreService {
     if (group == null) return null;
 
     return (membership: membership, group: group);
+  }
+
+  // Devuelve todas las membresías de un grupo (sus jugadores)
+  Future<List<Membership>> getGroupMembers(String groupId) async {
+    final query = await _db
+        .collection('memberships')
+        .where('groupId', isEqualTo: groupId)
+        .get();
+
+    return query.docs.map((doc) => Membership.fromMap(doc.data())).toList();
+  }
+
+  // Crea un partido nuevo en el grupo y devuelve el partido creado
+  Future<Match> createMatch({
+    required String groupId,
+    required String type,
+    required int teamSize,
+    required DateTime scheduledAt,
+    required String createdBy,
+  }) async {
+    final matchRef = _db.collection('matches').doc();
+
+    final match = Match(
+      matchId: matchRef.id,
+      groupId: groupId,
+      type: type,
+      teamSize: teamSize,
+      status: 'scheduled',
+      createdBy: createdBy,
+      scheduledAt: scheduledAt,
+      createdAt: DateTime.now(),
+      teamAScore: null,
+      teamBScore: null,
+      slots: _generateEmptySlots(teamSize),
+    );
+
+    await matchRef.set(match.toMap());
+    return match;
+  }
+
+  // Genera los huecos vacíos para un partido: teamSize por cada equipo (A y B)
+  List<Slot> _generateEmptySlots(int teamSize) {
+    final slots = <Slot>[];
+    for (final team in ['A', 'B']) {
+      for (int i = 0; i < teamSize; i++) {
+        slots.add(
+          Slot(
+            team: team,
+            position: 'Jugador ${i + 1}',
+            playerId: null,
+            playerName: null,
+          ),
+        );
+      }
+    }
+    return slots;
+  }
+
+  // Devuelve los partidos de un grupo, ordenados por fecha
+  Future<List<Match>> getGroupMatches(String groupId) async {
+    final query = await _db
+        .collection('matches')
+        .where('groupId', isEqualTo: groupId)
+        .orderBy('scheduledAt')
+        .get();
+
+    return query.docs.map((doc) => Match.fromMap(doc.id, doc.data())).toList();
   }
 }
