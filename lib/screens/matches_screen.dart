@@ -4,6 +4,7 @@ import '../services/firestore_service.dart';
 import '../models/match.dart';
 import '../models/membership.dart';
 import 'create_match_sheet.dart';
+import 'match_field_screen.dart';
 
 class MatchesScreen extends StatefulWidget {
   const MatchesScreen({super.key});
@@ -79,6 +80,13 @@ class _MatchesScreenState extends State<MatchesScreen> {
                 leading: const Icon(Icons.sports_soccer),
                 title: Text(match.type),
                 subtitle: Text(_formatDate(match.scheduledAt)),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => MatchFieldScreen(match: match),
+                    ),
+                  );
+                },
               );
             },
           );

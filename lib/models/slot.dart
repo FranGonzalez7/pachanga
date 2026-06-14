@@ -28,4 +28,20 @@ class Slot {
       'playerName': playerName,
     };
   }
+
+  // Devuelve una copia del slot cambiando solo los campos indicados
+  Slot copyWith({
+    String? team,
+    String? position,
+    String? playerId,
+    String? playerName,
+    bool clearPlayer = false,
+  }) {
+    return Slot(
+      team: team ?? this.team,
+      position: position ?? this.position,
+      playerId: clearPlayer ? null : (playerId ?? this.playerId),
+      playerName: clearPlayer ? null : (playerName ?? this.playerName),
+    );
+  }
 }

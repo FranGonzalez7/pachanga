@@ -184,7 +184,7 @@ class FirestoreService {
     return match;
   }
 
-  // Genera los huecos vacíos para un partido: teamSize por cada equipo (A y B)
+  // Genera los huecos vacíos: teamSize por cada equipo (A y B), sin posición
   List<Slot> _generateEmptySlots(int teamSize) {
     final slots = <Slot>[];
     for (final team in ['A', 'B']) {
@@ -192,7 +192,7 @@ class FirestoreService {
         slots.add(
           Slot(
             team: team,
-            position: 'Jugador ${i + 1}',
+            position: '', // vacía hasta que alguien se apunte y la elija
             playerId: null,
             playerName: null,
           ),
@@ -200,6 +200,34 @@ class FirestoreService {
       }
     }
     return slots;
+  }
+
+  // Apunta a un jugador a un hueco concreto del partido, con una posición
+  Future<void> joinSlot({
+    required String matchId,
+    required int slotIndex,
+    required String playerId,
+    required String playerName,
+    required String position,
+  }) async {
+    final matchRef = _db.collection('matches').doc(matchId);
+    final doc = await matchRef.get();
+    if (!doc.exists) return;
+
+    final match = Match.fromMap(doc.id, doc.data()!);
+
+    // Creamos una copia de la lista de slots con el hueco actualizado
+    final updatedSlots = List<Slot>.from(match.slots);
+    updatedSlots[slotIndex] = updatedSlots[slotIndex].copyWith(
+      playerId: playerId,
+      playerName: playerName,
+      position: position,
+    );
+
+    // Guardamos solo el campo 'slots' actualizado
+    await matchRef.update({
+      'slots': updatedSlots.map((slot) => slot.toMap()).toList(),
+    });
   }
 
   // Devuelve los partidos de un grupo, ordenados por fecha
