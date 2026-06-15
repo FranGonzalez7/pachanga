@@ -23,6 +23,8 @@ class _MatchFieldScreenState extends State<MatchFieldScreen> {
   late Match _match;
   bool _isSaving = false;
 
+  List<Membership> _groupMembers = []; // todos los miembros del grupo
+
   static const List<String> _positions = [
     'Portero',
     'Defensa',
@@ -31,14 +33,37 @@ class _MatchFieldScreenState extends State<MatchFieldScreen> {
     'Delantero',
   ];
 
+  bool get _isCaptain => widget.currentMembership.role == 'captain';
+
   @override
   void initState() {
     super.initState();
     _match = widget.match;
-    _reloadMatch(); // carga la versión actual desde Firestore al abrir
+    _reloadMatch();
+    if (_isCaptain) {
+      _loadGroupMembers(); // solo el capitán necesita la lista
+    }
+  }
+
+  Future<void> _loadGroupMembers() async {
+    final members = await _firestoreService.getGroupMembers(
+      widget.currentMembership.groupId,
+    );
+    if (mounted) {
+      setState(() => _groupMembers = members);
+    }
   }
 
   String get _myUid => widget.currentMembership.userId;
+
+  // Devuelve los miembros que AÚN NO están en ningún hueco del partido
+  List<Membership> get _availablePlayers {
+    final occupiedIds = _match.slots
+        .where((s) => s.playerId != null)
+        .map((s) => s.playerId)
+        .toSet();
+    return _groupMembers.where((m) => !occupiedIds.contains(m.userId)).toList();
+  }
 
   // Recarga el partido desde Firestore tras un cambio
   Future<void> _reloadMatch() async {
@@ -132,39 +157,104 @@ class _MatchFieldScreenState extends State<MatchFieldScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final teamA = <int>[];
-    final teamB = <int>[];
-    // Guardamos los ÍNDICES reales de cada slot, no copias
-    for (int i = 0; i < _match.slots.length; i++) {
-      if (_match.slots[i].team == 'A') {
-        teamA.add(i);
-      } else {
-        teamB.add(i);
-      }
-    }
-
     return Scaffold(
       appBar: AppBar(title: Text(_match.type)),
-      body: Stack(
+      body: Column(
         children: [
-          Container(
-            color: const Color(0xFF2E7D32),
-            child: Column(
+          Expanded(
+            child: Stack(
               children: [
-                Expanded(child: _buildTeamHalf(teamA, Colors.red)),
-                Container(height: 2, color: Colors.white),
-                Expanded(child: _buildTeamHalf(teamB, Colors.blue)),
+                Container(
+                  color: const Color(0xFF2E7D32),
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: _buildTeamHalf(_teamAIndexes(), Colors.red),
+                      ),
+                      Container(height: 2, color: Colors.white),
+                      Expanded(
+                        child: _buildTeamHalf(_teamBIndexes(), Colors.blue),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_isSaving)
+                  Container(
+                    color: Colors.black26,
+                    child: const Center(child: CircularProgressIndicator()),
+                  ),
               ],
             ),
           ),
-          if (_isSaving)
-            Container(
-              color: Colors.black26,
-              child: const Center(child: CircularProgressIndicator()),
-            ),
+          if (_isCaptain) _buildAvailablePlayersBar(),
         ],
       ),
     );
+  }
+
+  Widget _buildAvailablePlayersBar() {
+    final players = _availablePlayers;
+    return Container(
+      height: 110,
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+      color: Colors.grey[200],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(left: 8, bottom: 4),
+            child: Text(
+              'Jugadores disponibles',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          Expanded(
+            child: players.isEmpty
+                ? const Center(child: Text('Todos colocados'))
+                : ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: players.length,
+                    itemBuilder: (context, index) {
+                      final player = players[index];
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircleAvatar(
+                              radius: 22,
+                              child: Text(_initials(player.displayName)),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              player.displayName,
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<int> _teamAIndexes() {
+    final list = <int>[];
+    for (int i = 0; i < _match.slots.length; i++) {
+      if (_match.slots[i].team == 'A') list.add(i);
+    }
+    return list;
+  }
+
+  List<int> _teamBIndexes() {
+    final list = <int>[];
+    for (int i = 0; i < _match.slots.length; i++) {
+      if (_match.slots[i].team == 'B') list.add(i);
+    }
+    return list;
   }
 
   Widget _buildTeamHalf(List<int> slotIndexes, Color teamColor) {
