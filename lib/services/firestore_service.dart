@@ -277,4 +277,20 @@ class FirestoreService {
       'slots': updatedSlots.map((slot) => slot.toMap()).toList(),
     });
   }
+
+  // Vacía todos los huecos de un partido (mantiene la estructura de equipos)
+  Future<void> clearAllSlots(String matchId) async {
+    final matchRef = _db.collection('matches').doc(matchId);
+    final doc = await matchRef.get();
+    if (!doc.exists) return;
+
+    final match = Match.fromMap(doc.id, doc.data()!);
+    final clearedSlots = match.slots
+        .map((slot) => slot.copyWith(clearPlayer: true, position: ''))
+        .toList();
+
+    await matchRef.update({
+      'slots': clearedSlots.map((slot) => slot.toMap()).toList(),
+    });
+  }
 }
