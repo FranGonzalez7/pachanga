@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/match.dart';
-import '../models/slot.dart';
 import '../models/membership.dart';
 import '../services/firestore_service.dart';
+import 'match_score_screen.dart';
 
 class MatchFieldScreen extends StatefulWidget {
   final Match match;
@@ -302,9 +302,15 @@ class _MatchFieldScreenState extends State<MatchFieldScreen> {
     setState(() => _isSaving = true);
     await _firestoreService.updateMatchStatus(_match.matchId, 'inProgress');
     await _reloadMatch();
-    if (mounted) setState(() => _isSaving = false);
-
-    // Aquí, en la siguiente pieza, navegaremos a la pantalla de puntuación
+    if (mounted) {
+      setState(() => _isSaving = false);
+      // Navegamos a la pantalla de puntuación
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => MatchScoreScreen(match: _match),
+        ),
+      );
+    }
   }
 
   @override

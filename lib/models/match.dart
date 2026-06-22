@@ -12,7 +12,8 @@ class Match {
   final DateTime createdAt;
   final int? teamAScore; 
   final int? teamBScore;
-  final List<Slot> slots; 
+  final List<Slot> slots;
+  final Map<String, int> goals; // uid del jugador -> goles en este partido 
 
   Match({
     required this.matchId,
@@ -26,6 +27,7 @@ class Match {
     this.teamAScore,
     this.teamBScore,
     required this.slots,
+    required this.goals,
   });
 
   factory Match.fromMap(String matchId, Map<String, dynamic> data) {
@@ -43,6 +45,7 @@ class Match {
       slots: (data['slots'] as List<dynamic>)
           .map((slotData) => Slot.fromMap(slotData as Map<String, dynamic>))
           .toList(),
+      goals: Map<String, int>.from(data['goals'] ?? {}),
     );
   }
 
@@ -58,6 +61,7 @@ class Match {
       'teamAScore': teamAScore,
       'teamBScore': teamBScore,
       'slots': slots.map((slot) => slot.toMap()).toList(),
+      'goals': goals,
     };
   }
 }

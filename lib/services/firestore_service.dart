@@ -178,6 +178,7 @@ class FirestoreService {
       teamAScore: null,
       teamBScore: null,
       slots: _generateEmptySlots(teamSize),
+      goals: {}, // inicialmente no hay goles registrados
     );
 
     await matchRef.set(match.toMap());
@@ -299,5 +300,15 @@ class FirestoreService {
     await _db.collection('matches').doc(matchId).update({'status': status});
   }
 
-  
+  // Actualiza los goles de un jugador en un partido (cantidad puede ser +1 o -1)
+  Future<void> updatePlayerGoals({
+    required String matchId,
+    required String playerId,
+    required int newGoalCount,
+  }) async {
+    final matchRef = _db.collection('matches').doc(matchId);
+    await matchRef.update({
+      'goals.$playerId': newGoalCount,
+    });
+  }
 }
