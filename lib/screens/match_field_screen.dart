@@ -271,6 +271,42 @@ class _MatchFieldScreenState extends State<MatchFieldScreen> {
     }
   }
 
+  // El capitán comienza el partido (pasa a 'inProgress')
+  Future<void> _startMatch() async {
+    // Comprobamos si quedan huecos vacíos
+    final emptySlots = _match.slots.where((s) => s.playerId == null).length;
+
+    if (emptySlots > 0) {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Comenzar partido'),
+          content: Text(
+            'Quedan $emptySlots huecos sin jugador. ¿Comenzar de todas formas?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Comenzar'),
+            ),
+          ],
+        ),
+      );
+      if (confirm != true) return;
+    }
+
+    setState(() => _isSaving = true);
+    await _firestoreService.updateMatchStatus(_match.matchId, 'inProgress');
+    await _reloadMatch();
+    if (mounted) setState(() => _isSaving = false);
+
+    // Aquí, en la siguiente pieza, navegaremos a la pantalla de puntuación
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -313,6 +349,18 @@ class _MatchFieldScreenState extends State<MatchFieldScreen> {
             ),
           ),
           if (_isCaptain) _buildAvailablePlayersBar(),
+          if (_isCaptain && _match.status == 'scheduled')
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.play_arrow),
+                  label: const Text('Comenzar partido'),
+                  onPressed: _startMatch,
+                ),
+              ),
+            ),
         ],
       ),
     );

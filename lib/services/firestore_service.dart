@@ -293,4 +293,11 @@ class FirestoreService {
       'slots': clearedSlots.map((slot) => slot.toMap()).toList(),
     });
   }
+
+  // Cambia el estado de un partido (scheduled, inProgress, played)
+  Future<void> updateMatchStatus(String matchId, String status) async {
+    await _db.collection('matches').doc(matchId).update({'status': status});
+  }
+
+  
 }
