@@ -42,15 +42,6 @@ class _MatchScoreScreenState extends State<MatchScoreScreen> {
     return _match.goals[playerId] ?? 0;
   }
 
-  // Marcador autocalculado: suma de goles de cada equipo
-  int _teamScore(String team) {
-    int total = 0;
-    for (final slot in _occupiedSlots(team)) {
-      total += _goalsOf(slot.playerId!);
-    }
-    return total;
-  }
-
   // Cambia los goles de un jugador (delta = +1 o -1)
   Future<void> _changeGoals(String playerId, int delta) async {
     final current = _goalsOf(playerId);
@@ -62,6 +53,31 @@ class _MatchScoreScreenState extends State<MatchScoreScreen> {
       matchId: _match.matchId,
       playerId: playerId,
       newGoalCount: newCount,
+    );
+    await _reloadMatch();
+    if (mounted) setState(() => _isSaving = false);
+  }
+
+  // Cambia los goles "extra" de un equipo (propias del rival, ajustes).
+  // No tocan a ningún jugador: solo suben/bajan el marcador del equipo.
+  Future<void> _changeTeamExtra(String team, int delta) async {
+    // Calculamos el nuevo extra del equipo que se toca, con suelo en 0:
+    // el extra nunca puede ser negativo (el marcador no puede bajar de la
+    // suma de goles de los jugadores).
+    final currentA = _match.teamAExtraGoals;
+    final currentB = _match.teamBExtraGoals;
+
+    final newA = team == 'A' ? (currentA + delta).clamp(0, 99) : currentA;
+    final newB = team == 'B' ? (currentB + delta).clamp(0, 99) : currentB;
+
+    // Si no cambia nada (intentábamos bajar de 0), salimos.
+    if (newA == currentA && newB == currentB) return;
+
+    setState(() => _isSaving = true);
+    await _firestoreService.updateTeamExtraGoals(
+      matchId: _match.matchId,
+      teamAExtraGoals: newA,
+      teamBExtraGoals: newB,
     );
     await _reloadMatch();
     if (mounted) setState(() => _isSaving = false);
@@ -143,20 +159,107 @@ class _MatchScoreScreenState extends State<MatchScoreScreen> {
   }
 
   Widget _buildScoreboard() {
+    // El marcador lo decide el modelo (goles de jugadores + extra).
+    // La pantalla solo lo muestra; aquí no se calcula nada.
+    final extraA = _match.teamAExtraGoals;
+    final extraB = _match.teamBExtraGoals;
+
     return Container(
       padding: const EdgeInsets.all(16),
       color: Colors.grey[200],
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      child: Column(
         children: [
-          const Text('Rojo', style: TextStyle(fontWeight: FontWeight.bold)),
-          Text(
-            '${_teamScore('A')} - ${_teamScore('B')}',
-            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // --- Columna equipo A (Rojo) ---
+              _scoreSide(
+                label: 'Rojo',
+                score: _match.teamAScore,
+                color: Colors.red,
+                extra: extraA,
+                onAdd: _isSaving ? null : () => _changeTeamExtra('A', 1),
+                onRemove: (_isSaving || extraA == 0)
+                    ? null
+                    : () => _changeTeamExtra('A', -1),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                child: Text(
+                  '-',
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                ),
+              ),
+              // --- Columna equipo B (Azul) ---
+              _scoreSide(
+                label: 'Azul',
+                score: _match.teamBScore,
+                color: Colors.blue,
+                extra: extraB,
+                onAdd: _isSaving ? null : () => _changeTeamExtra('B', 1),
+                onRemove: (_isSaving || extraB == 0)
+                    ? null
+                    : () => _changeTeamExtra('B', -1),
+              ),
+            ],
           ),
-          const Text('Azul', style: TextStyle(fontWeight: FontWeight.bold)),
+          // Pista de ayuda: solo aparece si hay algún gol "a mano".
+          if (extraA > 0 || extraB > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                'El marcador incluye goles en propia o ajustes del capitán.',
+                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                textAlign: TextAlign.center,
+              ),
+            ),
         ],
       ),
+    );
+  }
+
+  // Una mitad del marcador: etiqueta, número grande y botones +/- del extra.
+  Widget _scoreSide({
+    required String label,
+    required int score,
+    required Color color,
+    required int extra,
+    required VoidCallback? onAdd,
+    required VoidCallback? onRemove,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: TextStyle(fontWeight: FontWeight.bold, color: color),
+        ),
+        Text(
+          '$score',
+          style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold),
+        ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              iconSize: 20,
+              icon: const Icon(Icons.remove_circle_outline),
+              onPressed: onRemove,
+            ),
+            const SizedBox(width: 12),
+            IconButton(
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              iconSize: 20,
+              icon: const Icon(Icons.add_circle_outline),
+              onPressed: onAdd,
+            ),
+          ],
+        ),
+      ],
     );
   }
 

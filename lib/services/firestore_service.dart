@@ -175,8 +175,6 @@ class FirestoreService {
       createdBy: createdBy,
       scheduledAt: scheduledAt,
       createdAt: DateTime.now(),
-      teamAScore: null,
-      teamBScore: null,
       slots: _generateEmptySlots(teamSize),
       goals: {}, // inicialmente no hay goles registrados
     );
@@ -307,8 +305,19 @@ class FirestoreService {
     required int newGoalCount,
   }) async {
     final matchRef = _db.collection('matches').doc(matchId);
+    await matchRef.update({'goals.$playerId': newGoalCount});
+  }
+
+  // Actualiza los goles "extra" de cada equipo (goles en propia del rival, ajustes de disputa). NO son goles de ningún jugador concreto: solo suben o bajan el marcador del equipo sin tocar los puntos individuales.
+  Future<void> updateTeamExtraGoals({
+    required String matchId,
+    required int teamAExtraGoals,
+    required int teamBExtraGoals,
+  }) async {
+    final matchRef = _db.collection('matches').doc(matchId);
     await matchRef.update({
-      'goals.$playerId': newGoalCount,
+      'teamAExtraGoals': teamAExtraGoals,
+      'teamBExtraGoals': teamBExtraGoals,
     });
   }
 }

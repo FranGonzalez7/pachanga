@@ -2,18 +2,24 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'slot.dart';
 
 class Match {
+  // Valores que usamos para distinguir equipo en slot.team.
+  static const String teamA = 'A';
+  static const String teamB = 'B';
+
   final String matchId;
   final String groupId;
   final String type; // "5v5", "6v6"...
   final int teamSize; // 5, 6...
-  final String status; 
+  final String status;
   final String createdBy;
   final DateTime scheduledAt;
   final DateTime createdAt;
-  final int? teamAScore; 
-  final int? teamBScore;
+  // Goles "a mano" por equipo: goles en propia del rival, ajustes de disputa...
+  // Empiezan en 0. NO confundir con teamAScore (ese es el marcador total).
+  final int teamAExtraGoals;
+  final int teamBExtraGoals;
   final List<Slot> slots;
-  final Map<String, int> goals; // uid del jugador -> goles en este partido 
+  final Map<String, int> goals; // playerId del jugador -> goles en este partido
 
   Match({
     required this.matchId,
@@ -24,11 +30,40 @@ class Match {
     required this.createdBy,
     required this.scheduledAt,
     required this.createdAt,
-    this.teamAScore,
-    this.teamBScore,
+    this.teamAExtraGoals = 0,
+    this.teamBExtraGoals = 0,
     required this.slots,
     required this.goals,
   });
+
+  // --- Marcador DERIVADO: no se almacena, se calcula de los goles + el extra ---
+
+  // Suma de goles de los jugadores de cada equipo (lo "con dueño").
+  int get teamAGoalsFromPlayers {
+    int total = 0;
+    for (final slot in slots) {
+      final pid = slot.playerId;
+      if (slot.team == teamA && pid != null) {
+        total += goals[pid] ?? 0;
+      }
+    }
+    return total;
+  }
+
+  int get teamBGoalsFromPlayers {
+    int total = 0;
+    for (final slot in slots) {
+      final pid = slot.playerId;
+      if (slot.team == teamB && pid != null) {
+        total += goals[pid] ?? 0;
+      }
+    }
+    return total;
+  }
+
+  // Marcador final = goles de jugadores + goles "a mano".
+  int get teamAScore => teamAGoalsFromPlayers + teamAExtraGoals;
+  int get teamBScore => teamBGoalsFromPlayers + teamBExtraGoals;
 
   factory Match.fromMap(String matchId, Map<String, dynamic> data) {
     return Match(
@@ -40,8 +75,9 @@ class Match {
       createdBy: data['createdBy'] as String,
       scheduledAt: (data['scheduledAt'] as Timestamp).toDate(),
       createdAt: (data['createdAt'] as Timestamp).toDate(),
-      teamAScore: data['teamAScore'] as int?,
-      teamBScore: data['teamBScore'] as int?,
+      // ?? 0 para que los partidos viejos (sin estos campos) no rompan.
+      teamAExtraGoals: data['teamAExtraGoals'] as int? ?? 0,
+      teamBExtraGoals: data['teamBExtraGoals'] as int? ?? 0,
       slots: (data['slots'] as List<dynamic>)
           .map((slotData) => Slot.fromMap(slotData as Map<String, dynamic>))
           .toList(),
@@ -58,10 +94,42 @@ class Match {
       'createdBy': createdBy,
       'scheduledAt': Timestamp.fromDate(scheduledAt),
       'createdAt': Timestamp.fromDate(createdAt),
-      'teamAScore': teamAScore,
-      'teamBScore': teamBScore,
+      // OJO: ya NO escribimos teamAScore/teamBScore, son derivados.
+      'teamAExtraGoals': teamAExtraGoals,
+      'teamBExtraGoals': teamBExtraGoals,
       'slots': slots.map((slot) => slot.toMap()).toList(),
       'goals': goals,
     };
+  }
+
+  // Devuelve una copia del Match cambiando solo los campos indicados.
+  Match copyWith({
+    String? matchId,
+    String? groupId,
+    String? type,
+    int? teamSize,
+    String? status,
+    String? createdBy,
+    DateTime? scheduledAt,
+    DateTime? createdAt,
+    int? teamAExtraGoals,
+    int? teamBExtraGoals,
+    List<Slot>? slots,
+    Map<String, int>? goals,
+  }) {
+    return Match(
+      matchId: matchId ?? this.matchId,
+      groupId: groupId ?? this.groupId,
+      type: type ?? this.type,
+      teamSize: teamSize ?? this.teamSize,
+      status: status ?? this.status,
+      createdBy: createdBy ?? this.createdBy,
+      scheduledAt: scheduledAt ?? this.scheduledAt,
+      createdAt: createdAt ?? this.createdAt,
+      teamAExtraGoals: teamAExtraGoals ?? this.teamAExtraGoals,
+      teamBExtraGoals: teamBExtraGoals ?? this.teamBExtraGoals,
+      slots: slots ?? this.slots,
+      goals: goals ?? this.goals,
+    );
   }
 }

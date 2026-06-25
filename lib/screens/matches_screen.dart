@@ -5,6 +5,7 @@ import '../models/match.dart';
 import '../models/membership.dart';
 import 'create_match_sheet.dart';
 import 'match_field_screen.dart';
+import 'match_score_screen.dart'; // NUEVO: destino para partidos en juego/jugados
 
 class MatchesScreen extends StatefulWidget {
   const MatchesScreen({super.key});
@@ -45,6 +46,33 @@ class _MatchesScreenState extends State<MatchesScreen> {
     });
   }
 
+  // Decide a qué pantalla abrir un partido según su estado:
+  //   scheduled  -> campo (editar alineación)
+  //   inProgress -> puntuación (registrar goles)
+  //   played     -> puntuación (de momento; será un resumen más adelante)
+  Future<void> _openMatch(Match match) async {
+    final Widget destination;
+
+    switch (match.status) {
+      case 'inProgress':
+      case 'played':
+        destination = MatchScoreScreen(match: match);
+        break;
+      case 'scheduled':
+      default:
+        destination = MatchFieldScreen(
+          match: match,
+          currentMembership: _membership!,
+        );
+        break;
+    }
+
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (context) => destination));
+    _refreshMatches(); // al volver, refrescamos la lista
+  }
+
   void _openCreateMatch() {
     showModalBottomSheet(
       context: context,
@@ -80,17 +108,10 @@ class _MatchesScreenState extends State<MatchesScreen> {
                 leading: const Icon(Icons.sports_soccer),
                 title: Text(match.type),
                 subtitle: Text(_formatDate(match.scheduledAt)),
-                onTap: () async {
-                  await Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => MatchFieldScreen(
-                        match: match,
-                        currentMembership: _membership!,
-                      ),
-                    ),
-                  );
-                  _refreshMatches(); // al volver, refrescamos la lista
-                },
+                trailing: _statusChip(
+                  match.status,
+                ), // NUEVO: pista visual del estado
+                onTap: () => _openMatch(match),
               );
             },
           );
@@ -103,6 +124,44 @@ class _MatchesScreenState extends State<MatchesScreen> {
               label: const Text('Crear partido'),
             )
           : null,
+    );
+  }
+
+  // Pequeña etiqueta de color para ver el estado de un vistazo.
+  Widget _statusChip(String status) {
+    late final String label;
+    late final Color color;
+
+    switch (status) {
+      case 'inProgress':
+        label = 'En juego';
+        color = Colors.orange;
+        break;
+      case 'played':
+        label = 'Jugado';
+        color = Colors.grey;
+        break;
+      case 'scheduled':
+      default:
+        label = 'Programado';
+        color = Colors.green;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 
