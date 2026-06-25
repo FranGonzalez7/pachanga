@@ -5,7 +5,7 @@ import '../models/match.dart';
 import '../models/membership.dart';
 import 'create_match_sheet.dart';
 import 'match_field_screen.dart';
-import 'match_score_screen.dart'; // NUEVO: destino para partidos en juego/jugados
+import 'match_score_screen.dart';
 
 class MatchesScreen extends StatefulWidget {
   const MatchesScreen({super.key});
@@ -19,44 +19,38 @@ class _MatchesScreenState extends State<MatchesScreen> {
   final FirestoreService _firestoreService = FirestoreService();
 
   Membership? _membership;
-  late Future<List<Match>> _matchesFuture;
+  bool _loadingMembership = true;
 
   @override
   void initState() {
     super.initState();
-    _matchesFuture = _loadMatches();
+    _loadMembership();
   }
 
-  Future<List<Match>> _loadMatches() async {
+  // Cargamos la membresía una sola vez: necesitamos su groupId para el stream.
+  Future<void> _loadMembership() async {
     final uid = _authService.currentUser!.uid;
     final membership = await _firestoreService.getUserMembership(uid);
     if (mounted) {
       setState(() {
         _membership = membership;
+        _loadingMembership = false;
       });
     }
-    if (membership == null) return [];
-    return _firestoreService.getGroupMatches(membership.groupId);
   }
 
-  // Recarga la lista de partidos
-  void _refreshMatches() {
-    setState(() {
-      _matchesFuture = _loadMatches();
-    });
-  }
-
-  // Decide a qué pantalla abrir un partido según su estado:
-  //   scheduled  -> campo (editar alineación)
-  //   inProgress -> puntuación (registrar goles)
-  //   played     -> puntuación (de momento; será un resumen más adelante)
+  // Decide a qué pantalla abrir un partido según su estado.
+  // Como la lista ahora es un stream en vivo, match.status siempre está fresco.
   Future<void> _openMatch(Match match) async {
     final Widget destination;
 
     switch (match.status) {
       case 'inProgress':
       case 'played':
-        destination = MatchScoreScreen(match: match);
+        destination = MatchScoreScreen(
+          match: match,
+          currentMembership: _membership!,
+        );
         break;
       case 'scheduled':
       default:
@@ -70,7 +64,7 @@ class _MatchesScreenState extends State<MatchesScreen> {
     await Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (context) => destination));
-    _refreshMatches(); // al volver, refrescamos la lista
+    // Ya no refrescamos a mano: el stream mantiene la lista al día sola.
   }
 
   void _openCreateMatch() {
@@ -80,7 +74,8 @@ class _MatchesScreenState extends State<MatchesScreen> {
       builder: (context) => CreateMatchSheet(
         groupId: _membership!.groupId,
         createdBy: _membership!.userId,
-        onMatchCreated: _refreshMatches,
+        // El stream añade el partido nuevo solo; no hace falta hacer nada aquí.
+        onMatchCreated: () {},
       ),
     );
   }
@@ -89,34 +84,7 @@ class _MatchesScreenState extends State<MatchesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Partidos')),
-      body: FutureBuilder<List<Match>>(
-        future: _matchesFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('No hay partidos programados.'));
-          }
-
-          final matches = snapshot.data!;
-          return ListView.builder(
-            itemCount: matches.length,
-            itemBuilder: (context, index) {
-              final match = matches[index];
-              return ListTile(
-                leading: const Icon(Icons.sports_soccer),
-                title: Text(match.type),
-                subtitle: Text(_formatDate(match.scheduledAt)),
-                trailing: _statusChip(
-                  match.status,
-                ), // NUEVO: pista visual del estado
-                onTap: () => _openMatch(match),
-              );
-            },
-          );
-        },
-      ),
+      body: _buildBody(),
       floatingActionButton: (_membership?.role == 'captain')
           ? FloatingActionButton.extended(
               onPressed: _openCreateMatch,
@@ -124,6 +92,44 @@ class _MatchesScreenState extends State<MatchesScreen> {
               label: const Text('Crear partido'),
             )
           : null,
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loadingMembership) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_membership == null) {
+      return const Center(child: Text('No perteneces a ningún grupo.'));
+    }
+
+    // StreamBuilder: se suscribe a los partidos del grupo y se redibuja
+    // cada vez que cambia algo en Firestore. Adiós a los datos rancios.
+    return StreamBuilder<List<Match>>(
+      stream: _firestoreService.streamGroupMatches(_membership!.groupId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const Center(child: Text('No hay partidos programados.'));
+        }
+
+        final matches = snapshot.data!;
+        return ListView.builder(
+          itemCount: matches.length,
+          itemBuilder: (context, index) {
+            final match = matches[index];
+            return ListTile(
+              leading: const Icon(Icons.sports_soccer),
+              title: Text(match.type),
+              subtitle: Text(_formatDate(match.scheduledAt)),
+              trailing: _statusChip(match.status),
+              onTap: () => _openMatch(match),
+            );
+          },
+        );
+      },
     );
   }
 

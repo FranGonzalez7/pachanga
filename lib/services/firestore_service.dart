@@ -249,6 +249,21 @@ class FirestoreService {
     return query.docs.map((doc) => Match.fromMap(doc.id, doc.data())).toList();
   }
 
+  // Igual que getGroupMatches pero en tiempo real: emite la lista entera
+  // cada vez que cambia cualquier partido del grupo (estado, goles...).
+  Stream<List<Match>> streamGroupMatches(String groupId) {
+    return _db
+        .collection('matches')
+        .where('groupId', isEqualTo: groupId)
+        .orderBy('scheduledAt')
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => Match.fromMap(doc.id, doc.data()))
+              .toList(),
+        );
+  }
+
   // Lee un partido por su ID
   Future<Match?> getMatch(String matchId) async {
     final doc = await _db.collection('matches').doc(matchId).get();
@@ -296,6 +311,18 @@ class FirestoreService {
   // Cambia el estado de un partido (scheduled, inProgress, played)
   Future<void> updateMatchStatus(String matchId, String status) async {
     await _db.collection('matches').doc(matchId).update({'status': status});
+  }
+
+  // Devuelve un partido de inProgress a scheduled para corregir la alineación.
+  // La puntuación se reinicia, pero mantiene los slots: los jugadores siguen colocados, solo vuelven a ser
+  // editables. Operación destructiva: la puntuación registrada se pierde.
+  Future<void> revertMatchToScheduled(String matchId) async {
+    await _db.collection('matches').doc(matchId).update({
+      'status': 'scheduled',
+      'goals': {}, // se borra toda la puntuación individual
+      'teamAExtraGoals': 0,
+      'teamBExtraGoals': 0,
+    });
   }
 
   // Actualiza los goles de un jugador en un partido (cantidad puede ser +1 o -1)

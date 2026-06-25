@@ -304,10 +304,15 @@ class _MatchFieldScreenState extends State<MatchFieldScreen> {
     await _reloadMatch();
     if (mounted) {
       setState(() => _isSaving = false);
-      // Navegamos a la pantalla de puntuación
-      Navigator.of(context).push(
+      // pushReplacement en vez de push: una vez empezado el partido, el campo
+      // ya no pinta nada en la pila. Sustituimos en lugar de apilar, para que
+      // la flecha "atrás" de la puntuación lleve a la lista, no de vuelta al campo.
+      Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (context) => MatchScoreScreen(match: _match),
+          builder: (context) => MatchScoreScreen(
+            match: _match,
+            currentMembership: widget.currentMembership, // NUEVO
+          ),
         ),
       );
     }

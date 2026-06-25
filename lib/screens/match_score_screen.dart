@@ -1,11 +1,19 @@
 import 'package:flutter/material.dart';
 import '../models/match.dart';
 import '../models/slot.dart';
+import '../models/membership.dart';
 import '../services/firestore_service.dart';
+import 'match_field_screen.dart';
 
 class MatchScoreScreen extends StatefulWidget {
   final Match match;
-  const MatchScoreScreen({super.key, required this.match});
+  final Membership currentMembership; // NUEVO: quién está viendo la pantalla
+
+  const MatchScoreScreen({
+    super.key,
+    required this.match,
+    required this.currentMembership,
+  });
 
   @override
   State<MatchScoreScreen> createState() => _MatchScoreScreenState();
@@ -89,7 +97,16 @@ class _MatchScoreScreenState extends State<MatchScoreScreen> {
     final teamB = _occupiedSlots('B');
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Puntuación')),
+      appBar: AppBar(
+        title: const Text('Puntuación'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.undo),
+            tooltip: 'Volver a editar alineación',
+            onPressed: _isSaving ? null : _confirmRevertToScheduled,
+          ),
+        ],
+      ),
       body: Column(
         children: [
           Expanded(
@@ -268,5 +285,51 @@ class _MatchScoreScreenState extends State<MatchScoreScreen> {
     final parts = name.trim().split(' ');
     if (parts.length == 1) return parts[0][0].toUpperCase();
     return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+
+  // Vuelve el partido a 'scheduled' para reeditar la alineación.
+  // Pide confirmación porque borra toda la puntuación registrada.
+  Future<void> _confirmRevertToScheduled() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('¿Volver a editar la alineación?'),
+        content: const Text(
+          'El partido volverá a estado "Programado" y se borrarán todos '
+          'los goles y ajustes registrados. Esta acción no se puede deshacer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Volver atrás'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    await _firestoreService.revertMatchToScheduled(_match.matchId);
+
+    // Releemos el partido: ya está en 'scheduled' y sin goles. Se lo pasamos
+    // al campo para que abra con la alineación intacta y editable.
+    final updated = await _firestoreService.getMatch(_match.matchId);
+    if (!mounted || updated == null) return;
+
+    // pushReplacement: sustituimos la puntuación por el campo en un gesto.
+    // Así la flecha "atrás" del campo lleva a la lista, no a la puntuación vieja.
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (context) => MatchFieldScreen(
+          match: updated,
+          currentMembership: widget.currentMembership,
+        ),
+      ),
+    );
   }
 }
