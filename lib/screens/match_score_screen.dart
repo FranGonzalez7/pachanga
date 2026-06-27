@@ -4,6 +4,7 @@ import '../models/slot.dart';
 import '../models/membership.dart';
 import '../services/firestore_service.dart';
 import 'match_field_screen.dart';
+import '../logic/match_scoring.dart';
 
 class MatchScoreScreen extends StatefulWidget {
   final Match match;
@@ -35,6 +36,13 @@ class _MatchScoreScreenState extends State<MatchScoreScreen> {
   // Y quien mira es el capitán. Un jugador no-capitán solo visualiza.
   bool get _canEdit => _isInProgress && _isCaptain;
 
+  // Puntos que saca cada jugador en este partido (delta crudo, puede ser
+  // negativo). Solo se usa en modo lectura para mostrar el resultado.
+  Map<String, int> _pointsAwarded = {};
+
+  // El partido está cerrado: su resultado (y los puntos) son definitivos.
+  bool get _isPlayed => _match.status == 'played';
+
   @override
   void initState() {
     super.initState();
@@ -45,7 +53,11 @@ class _MatchScoreScreenState extends State<MatchScoreScreen> {
   Future<void> _reloadMatch() async {
     final updated = await _firestoreService.getMatch(_match.matchId);
     if (updated != null && mounted) {
-      setState(() => _match = updated);
+      setState(() {
+        _match = updated;
+        // Recalculamos los deltas de puntos (barato, en memoria, sin red).
+        _pointsAwarded = calculateMatchPoints(updated);
+      });
     }
   }
 
@@ -186,31 +198,78 @@ class _MatchScoreScreenState extends State<MatchScoreScreen> {
       ),
       title: Text(slot.playerName ?? 'Jugador'),
       subtitle: Text(slot.position),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Los +/- de goles solo se pueden tocar con el partido en juego.
-          IconButton(
-            icon: const Icon(Icons.remove_circle_outline),
-            onPressed: (_isSaving || !_canEdit)
-                ? null
-                : () => _changeGoals(slot.playerId!, -1),
-          ),
-          Text('$goals', style: const TextStyle(fontSize: 18)),
-          IconButton(
-            icon: const Icon(Icons.add_circle_outline),
-            onPressed: (_isSaving || !_canEdit)
-                ? null
-                : () => _changeGoals(slot.playerId!, 1),
-          ),
-        ],
-      ),
+      trailing: _canEdit
+          // Modo edición: botones +/- alrededor del número.
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.remove_circle_outline),
+                  onPressed: _isSaving
+                      ? null
+                      : () => _changeGoals(slot.playerId!, -1),
+                ),
+                Text('$goals', style: const TextStyle(fontSize: 18)),
+                IconButton(
+                  icon: const Icon(Icons.add_circle_outline),
+                  onPressed: _isSaving
+                      ? null
+                      : () => _changeGoals(slot.playerId!, 1),
+                ),
+              ],
+            )
+          // Modo lectura: goles arriba, y el delta de puntos SOLO si el partido
+          // ya está jugado (su resultado es definitivo).
+          : Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  _goalsLabel(goals),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (_isPlayed) ...[
+                  const SizedBox(height: 2),
+                  _buildPointsDelta(slot.playerId!),
+                ],
+              ],
+            ),
     );
   }
 
+  // Muestra los puntos que el jugador saca en este partido: +N en verde,
+  // -N en rojo, 0 en gris. Es el delta crudo (antes del suelo de 0).
+  Widget _buildPointsDelta(String playerId) {
+    final delta = _pointsAwarded[playerId] ?? 0;
+
+    final Color color;
+    final String text;
+    if (delta > 0) {
+      color = Colors.green[700]!;
+      text = '+$delta';
+    } else if (delta < 0) {
+      color = Colors.red[700]!;
+      text = '$delta'; // el signo - ya viene en el número
+    } else {
+      color = Colors.grey;
+      text = '0';
+    }
+
+    return Text(
+      '$text pts',
+      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color),
+    );
+  }
+
+  // Texto del número de goles con singular/plural: "0 goles", "1 gol", "2 goles".
+  String _goalsLabel(int goals) {
+    return goals == 1 ? '1 gol' : '$goals goles';
+  }
+
   Widget _buildScoreboard() {
-    // El marcador lo decide el modelo (goles de jugadores + extra).
-    // La pantalla solo lo muestra; aquí no se calcula nada.
     final extraA = _match.teamAExtraGoals;
     final extraB = _match.teamBExtraGoals;
 
@@ -221,9 +280,9 @@ class _MatchScoreScreenState extends State<MatchScoreScreen> {
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            crossAxisAlignment: CrossAxisAlignment.center,
+            crossAxisAlignment:
+                CrossAxisAlignment.start, // alineamos por arriba
             children: [
-              // --- Columna equipo A (Rojo) ---
               _scoreSide(
                 label: 'Rojo',
                 score: _match.teamAScore,
@@ -236,14 +295,24 @@ class _MatchScoreScreenState extends State<MatchScoreScreen> {
                     ? null
                     : () => _changeTeamExtra('A', -1),
               ),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 8),
-                child: Text(
-                  '-',
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                ),
+              // El guión vive en su propia columna, con un hueco arriba del
+              // tamaño de la etiqueta, para que caiga a la altura del número.
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(
+                    height: 20,
+                  ), // ~altura de la etiqueta de equipo
+                  Text(
+                    '-',
+                    style: TextStyle(
+                      fontSize: 36, // mismo tamaño que el número
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                ],
               ),
-              // --- Columna equipo B (Azul) ---
               _scoreSide(
                 label: 'Azul',
                 score: _match.teamBScore,
@@ -258,7 +327,6 @@ class _MatchScoreScreenState extends State<MatchScoreScreen> {
               ),
             ],
           ),
-          // Pista de ayuda: solo aparece si hay algún gol "a mano".
           if (extraA > 0 || extraB > 0)
             Padding(
               padding: const EdgeInsets.only(top: 8),
@@ -273,7 +341,8 @@ class _MatchScoreScreenState extends State<MatchScoreScreen> {
     );
   }
 
-  // Una mitad del marcador: etiqueta, número grande y botones +/- del extra.
+  // Una mitad del marcador: etiqueta, número grande y (si se puede editar)
+  // los botones +/- del extra. En modo lectura, sin botones.
   Widget _scoreSide({
     required String label,
     required int score,
@@ -293,26 +362,28 @@ class _MatchScoreScreenState extends State<MatchScoreScreen> {
           '$score',
           style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold),
         ),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-              iconSize: 20,
-              icon: const Icon(Icons.remove_circle_outline),
-              onPressed: onRemove,
-            ),
-            const SizedBox(width: 12),
-            IconButton(
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-              iconSize: 20,
-              icon: const Icon(Icons.add_circle_outline),
-              onPressed: onAdd,
-            ),
-          ],
-        ),
+        // Botones de ajuste: solo si se puede editar. En modo lectura, nada.
+        if (_canEdit)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                iconSize: 20,
+                icon: const Icon(Icons.remove_circle_outline),
+                onPressed: onRemove,
+              ),
+              const SizedBox(width: 12),
+              IconButton(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                iconSize: 20,
+                icon: const Icon(Icons.add_circle_outline),
+                onPressed: onAdd,
+              ),
+            ],
+          ),
       ],
     );
   }
