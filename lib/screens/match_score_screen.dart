@@ -7,7 +7,7 @@ import 'match_field_screen.dart';
 
 class MatchScoreScreen extends StatefulWidget {
   final Match match;
-  final Membership currentMembership; // NUEVO: quién está viendo la pantalla
+  final Membership currentMembership; // quién está viendo la pantalla
 
   const MatchScoreScreen({
     super.key,
@@ -23,6 +23,10 @@ class _MatchScoreScreenState extends State<MatchScoreScreen> {
   final FirestoreService _firestoreService = FirestoreService();
   late Match _match;
   bool _isSaving = false;
+
+  // El partido sigue editable solo mientras está en juego.
+  // Cuando pasa a 'played', se ocultan los controles de acción.
+  bool get _isInProgress => _match.status == 'inProgress';
 
   @override
   void initState() {
@@ -100,11 +104,13 @@ class _MatchScoreScreenState extends State<MatchScoreScreen> {
       appBar: AppBar(
         title: const Text('Puntuación'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.undo),
-            tooltip: 'Volver a editar alineación',
-            onPressed: _isSaving ? null : _confirmRevertToScheduled,
-          ),
+          // Volver a editar alineación: solo si el partido está en juego.
+          if (_isInProgress)
+            IconButton(
+              icon: const Icon(Icons.undo),
+              tooltip: 'Volver a editar alineación',
+              onPressed: _confirmRevertToScheduled,
+            ),
         ],
       ),
       body: Column(
@@ -118,6 +124,23 @@ class _MatchScoreScreenState extends State<MatchScoreScreen> {
             ),
           ),
           _buildScoreboard(),
+          // Botón de terminar: solo mientras el partido está en juego.
+          if (_isInProgress)
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.flag),
+                  label: const Text('Terminar partido'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: _confirmFinishMatch,
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -159,16 +182,19 @@ class _MatchScoreScreenState extends State<MatchScoreScreen> {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Los +/- de goles solo se pueden tocar con el partido en juego.
           IconButton(
             icon: const Icon(Icons.remove_circle_outline),
-            onPressed: _isSaving
+            onPressed: (_isSaving || !_isInProgress)
                 ? null
                 : () => _changeGoals(slot.playerId!, -1),
           ),
           Text('$goals', style: const TextStyle(fontSize: 18)),
           IconButton(
             icon: const Icon(Icons.add_circle_outline),
-            onPressed: _isSaving ? null : () => _changeGoals(slot.playerId!, 1),
+            onPressed: (_isSaving || !_isInProgress)
+                ? null
+                : () => _changeGoals(slot.playerId!, 1),
           ),
         ],
       ),
@@ -196,8 +222,10 @@ class _MatchScoreScreenState extends State<MatchScoreScreen> {
                 score: _match.teamAScore,
                 color: Colors.red,
                 extra: extraA,
-                onAdd: _isSaving ? null : () => _changeTeamExtra('A', 1),
-                onRemove: (_isSaving || extraA == 0)
+                onAdd: (_isSaving || !_isInProgress)
+                    ? null
+                    : () => _changeTeamExtra('A', 1),
+                onRemove: (_isSaving || !_isInProgress || extraA == 0)
                     ? null
                     : () => _changeTeamExtra('A', -1),
               ),
@@ -214,8 +242,10 @@ class _MatchScoreScreenState extends State<MatchScoreScreen> {
                 score: _match.teamBScore,
                 color: Colors.blue,
                 extra: extraB,
-                onAdd: _isSaving ? null : () => _changeTeamExtra('B', 1),
-                onRemove: (_isSaving || extraB == 0)
+                onAdd: (_isSaving || !_isInProgress)
+                    ? null
+                    : () => _changeTeamExtra('B', 1),
+                onRemove: (_isSaving || !_isInProgress || extraB == 0)
                     ? null
                     : () => _changeTeamExtra('B', -1),
               ),
@@ -331,5 +361,46 @@ class _MatchScoreScreenState extends State<MatchScoreScreen> {
         ),
       ),
     );
+  }
+
+  // Termina el partido: aplica los puntos a las membresías y pasa a 'played'.
+  // Es IRREVERSIBLE, por eso la confirmación es explícita.
+  Future<void> _confirmFinishMatch() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('¿Terminar el partido?'),
+        content: const Text(
+          'Se calcularán los puntos definitivos y se sumarán a cada jugador. '
+          'El partido quedará cerrado y esta acción no se puede deshacer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Terminar partido'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isSaving = true);
+    await _firestoreService.finishMatch(_match);
+    if (!mounted) return;
+
+    // Releemos el partido ya en 'played' para reflejar el estado final.
+    final updated = await _firestoreService.getMatch(_match.matchId);
+    if (updated != null && mounted) {
+      setState(() {
+        _match = updated;
+        _isSaving = false;
+      });
+    }
   }
 }

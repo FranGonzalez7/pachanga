@@ -5,6 +5,7 @@ import '../models/group.dart';
 import '../models/membership.dart';
 import '../models/match.dart';
 import '../models/slot.dart';
+import '../logic/match_scoring.dart';
 
 class FirestoreService {
   // Referencia a la base de datos
@@ -346,5 +347,47 @@ class FirestoreService {
       'teamAExtraGoals': teamAExtraGoals,
       'teamBExtraGoals': teamBExtraGoals,
     });
+  }
+
+  // Termina un partido: calcula los puntos de cada jugador, los suma a su
+  // membresía (con suelo en 0) y marca el partido como 'played'. Todo en un
+  // batch atómico: o se aplica TODO, o no se aplica nada (protege los datos
+  // si algo falla a mitad). Operación irreversible.
+  Future<void> finishMatch(Match match) async {
+    // 1. Calculamos los puntos de este partido (lógica pura, sin Firestore).
+    final pointsPerPlayer = calculateMatchPoints(match);
+
+    // 2. Preparamos el batch (el "sobre" de escrituras).
+    final batch = _db.batch();
+
+    // 3. Para cada jugador con puntos, leemos su membresía y preparamos el update.
+    for (final entry in pointsPerPlayer.entries) {
+      final playerId = entry.key;
+      final matchPoints = entry.value;
+
+      // Reconstruimos el ID determinista de la membresía: uid_groupId.
+      final membershipRef = _db
+          .collection('memberships')
+          .doc('${playerId}_${match.groupId}');
+
+      final membershipDoc = await membershipRef.get();
+      if (!membershipDoc.exists)
+        continue; // por seguridad: si no existe, la saltamos
+
+      final membership = Membership.fromMap(membershipDoc.data()!);
+
+      // Sumamos al total y aplicamos el suelo: nunca por debajo de 0.
+      final newPoints = (membership.points + matchPoints).clamp(0, 1 << 31);
+
+      // Preparamos (NO escribe todavía): solo actualizamos el campo points.
+      batch.update(membershipRef, {'points': newPoints});
+    }
+
+    // 4. Preparamos también el cambio de estado del partido.
+    final matchRef = _db.collection('matches').doc(match.matchId);
+    batch.update(matchRef, {'status': 'played'});
+
+    // 5. Commit: ahora SÍ se aplica todo de golpe (o nada si algo falla).
+    await batch.commit();
   }
 }
