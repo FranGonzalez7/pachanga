@@ -28,6 +28,13 @@ class _MatchScoreScreenState extends State<MatchScoreScreen> {
   // Cuando pasa a 'played', se ocultan los controles de acción.
   bool get _isInProgress => _match.status == 'inProgress';
 
+  // Quien mira es el capitán del grupo.
+  bool get _isCaptain => widget.currentMembership.role == 'captain';
+
+  // Se pueden tocar los controles solo si el partido está en juego
+  // Y quien mira es el capitán. Un jugador no-capitán solo visualiza.
+  bool get _canEdit => _isInProgress && _isCaptain;
+
   @override
   void initState() {
     super.initState();
@@ -105,7 +112,7 @@ class _MatchScoreScreenState extends State<MatchScoreScreen> {
         title: const Text('Puntuación'),
         actions: [
           // Volver a editar alineación: solo si el partido está en juego.
-          if (_isInProgress)
+          if (_canEdit)
             IconButton(
               icon: const Icon(Icons.undo),
               tooltip: 'Volver a editar alineación',
@@ -125,7 +132,7 @@ class _MatchScoreScreenState extends State<MatchScoreScreen> {
           ),
           _buildScoreboard(),
           // Botón de terminar: solo mientras el partido está en juego.
-          if (_isInProgress)
+          if (_canEdit)
             Padding(
               padding: const EdgeInsets.all(12),
               child: SizedBox(
@@ -185,14 +192,14 @@ class _MatchScoreScreenState extends State<MatchScoreScreen> {
           // Los +/- de goles solo se pueden tocar con el partido en juego.
           IconButton(
             icon: const Icon(Icons.remove_circle_outline),
-            onPressed: (_isSaving || !_isInProgress)
+            onPressed: (_isSaving || !_canEdit)
                 ? null
                 : () => _changeGoals(slot.playerId!, -1),
           ),
           Text('$goals', style: const TextStyle(fontSize: 18)),
           IconButton(
             icon: const Icon(Icons.add_circle_outline),
-            onPressed: (_isSaving || !_isInProgress)
+            onPressed: (_isSaving || !_canEdit)
                 ? null
                 : () => _changeGoals(slot.playerId!, 1),
           ),
@@ -222,10 +229,10 @@ class _MatchScoreScreenState extends State<MatchScoreScreen> {
                 score: _match.teamAScore,
                 color: Colors.red,
                 extra: extraA,
-                onAdd: (_isSaving || !_isInProgress)
+                onAdd: (_isSaving || !_canEdit)
                     ? null
                     : () => _changeTeamExtra('A', 1),
-                onRemove: (_isSaving || !_isInProgress || extraA == 0)
+                onRemove: (_isSaving || !_canEdit || extraA == 0)
                     ? null
                     : () => _changeTeamExtra('A', -1),
               ),
@@ -242,10 +249,10 @@ class _MatchScoreScreenState extends State<MatchScoreScreen> {
                 score: _match.teamBScore,
                 color: Colors.blue,
                 extra: extraB,
-                onAdd: (_isSaving || !_isInProgress)
+                onAdd: (_isSaving || !_canEdit)
                     ? null
                     : () => _changeTeamExtra('B', 1),
-                onRemove: (_isSaving || !_isInProgress || extraB == 0)
+                onRemove: (_isSaving || !_canEdit || extraB == 0)
                     ? null
                     : () => _changeTeamExtra('B', -1),
               ),
