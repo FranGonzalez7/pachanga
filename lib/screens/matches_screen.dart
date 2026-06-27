@@ -27,7 +27,6 @@ class _MatchesScreenState extends State<MatchesScreen> {
     _loadMembership();
   }
 
-  // Cargamos la membresía una sola vez: necesitamos su groupId para el stream.
   Future<void> _loadMembership() async {
     final uid = _authService.currentUser!.uid;
     final membership = await _firestoreService.getUserMembership(uid);
@@ -39,8 +38,6 @@ class _MatchesScreenState extends State<MatchesScreen> {
     }
   }
 
-  // Decide a qué pantalla abrir un partido según su estado.
-  // Como la lista ahora es un stream en vivo, match.status siempre está fresco.
   Future<void> _openMatch(Match match) async {
     final Widget destination;
 
@@ -64,7 +61,6 @@ class _MatchesScreenState extends State<MatchesScreen> {
     await Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (context) => destination));
-    // Ya no refrescamos a mano: el stream mantiene la lista al día sola.
   }
 
   void _openCreateMatch() {
@@ -74,7 +70,6 @@ class _MatchesScreenState extends State<MatchesScreen> {
       builder: (context) => CreateMatchSheet(
         groupId: _membership!.groupId,
         createdBy: _membership!.userId,
-        // El stream añade el partido nuevo solo; no hace falta hacer nada aquí.
         onMatchCreated: () {},
       ),
     );
@@ -82,58 +77,91 @@ class _MatchesScreenState extends State<MatchesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Partidos')),
-      body: _buildBody(),
-      floatingActionButton: (_membership?.role == 'captain')
-          ? FloatingActionButton.extended(
-              onPressed: _openCreateMatch,
-              icon: const Icon(Icons.add),
-              label: const Text('Crear partido'),
-            )
-          : null,
+    if (_loadingMembership) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (_membership == null) {
+      return const Scaffold(
+        body: Center(child: Text('No perteneces a ningún grupo.')),
+      );
+    }
+
+    // DefaultTabController gestiona las dos pestañas por nosotros.
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Partidos'),
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'Próximos'),
+              Tab(text: 'Jugados'),
+            ],
+          ),
+        ),
+        body: StreamBuilder<List<Match>>(
+          stream: _firestoreService.streamGroupMatches(_membership!.groupId),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return const Center(child: Text('Error al cargar los partidos.'));
+            }
+
+            final allMatches = snapshot.data ?? [];
+
+            // Próximos: scheduled + inProgress, en orden ascendente (ya vienen así).
+            final upcoming = allMatches
+                .where((m) => m.status != 'played')
+                .toList();
+
+            // Jugados: played, invertidos para que el más reciente quede arriba.
+            final playedList = allMatches
+                .where((m) => m.status == 'played')
+                .toList()
+                .reversed
+                .toList();
+
+            return TabBarView(
+              children: [
+                _buildMatchList(upcoming, 'No hay partidos próximos.'),
+                _buildMatchList(playedList, 'Aún no hay partidos jugados.'),
+              ],
+            );
+          },
+        ),
+        floatingActionButton: (_membership?.role == 'captain')
+            ? FloatingActionButton.extended(
+                onPressed: _openCreateMatch,
+                icon: const Icon(Icons.add),
+                label: const Text('Crear partido'),
+              )
+            : null,
+      ),
     );
   }
 
-  Widget _buildBody() {
-    if (_loadingMembership) {
-      return const Center(child: CircularProgressIndicator());
+  // Construye una lista de partidos, o un mensaje si está vacía.
+  Widget _buildMatchList(List<Match> matches, String emptyMessage) {
+    if (matches.isEmpty) {
+      return Center(child: Text(emptyMessage));
     }
-    if (_membership == null) {
-      return const Center(child: Text('No perteneces a ningún grupo.'));
-    }
-
-    // StreamBuilder: se suscribe a los partidos del grupo y se redibuja
-    // cada vez que cambia algo en Firestore. Adiós a los datos rancios.
-    return StreamBuilder<List<Match>>(
-      stream: _firestoreService.streamGroupMatches(_membership!.groupId),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(child: Text('No hay partidos programados.'));
-        }
-
-        final matches = snapshot.data!;
-        return ListView.builder(
-          itemCount: matches.length,
-          itemBuilder: (context, index) {
-            final match = matches[index];
-            return ListTile(
-              leading: const Icon(Icons.sports_soccer),
-              title: Text(match.type),
-              subtitle: Text(_formatDate(match.scheduledAt)),
-              trailing: _statusChip(match.status),
-              onTap: () => _openMatch(match),
-            );
-          },
+    return ListView.builder(
+      itemCount: matches.length,
+      itemBuilder: (context, index) {
+        final match = matches[index];
+        return ListTile(
+          leading: const Icon(Icons.sports_soccer),
+          title: Text(match.type),
+          subtitle: Text(_formatDate(match.scheduledAt)),
+          trailing: _statusChip(match.status),
+          onTap: () => _openMatch(match),
         );
       },
     );
   }
 
-  // Pequeña etiqueta de color para ver el estado de un vistazo.
   Widget _statusChip(String status) {
     late final String label;
     late final Color color;
