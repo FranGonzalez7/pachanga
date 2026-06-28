@@ -41,7 +41,7 @@ class _PlayerCardDialogState extends State<PlayerCardDialog> {
     // viewportFraction < 1 deja asomar las cartas vecinas a los lados.
     _pageController = PageController(
       initialPage: widget.initialIndex,
-      viewportFraction: 0.85,
+      viewportFraction: 0.92,
     );
   }
 

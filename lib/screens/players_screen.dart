@@ -23,9 +23,13 @@ class _PlayersScreenState extends State<PlayersScreen> {
   // Criterio de orden activo. Por defecto, por puntos.
   PlayerSort _sort = PlayerSort.points;
 
+  // Mi propio uid, para resaltar mi fila en la lista.
+  late final String _myUid;
+
   @override
   void initState() {
     super.initState();
+    _myUid = _authService.currentUser!.uid;
     _playersFuture = _loadPlayers();
   }
 
@@ -105,38 +109,45 @@ class _PlayersScreenState extends State<PlayersScreen> {
               final player = players[index];
               final isCaptain = player.role == 'captain';
 
-              return ListTile(
-                onTap: () => PlayerCardDialog.show(
-                  context,
-                  players: players,
-                  initialIndex: index,
-                ),
-                leading: CircleAvatar(
-                  child: Text(
-                    player.displayName.isNotEmpty
-                        ? player.displayName[0].toUpperCase()
-                        : '?',
+              final isMe = player.userId == _myUid;
+
+              return Container(
+                // Fondo sutil solo en mi fila, para localizarme rápido.
+                // Mismo azulito que el podio del Home, por coherencia.
+                color: isMe ? Colors.blue.withValues(alpha: 0.08) : null,
+                child: ListTile(
+                  onTap: () => PlayerCardDialog.show(
+                    context,
+                    players: players,
+                    initialIndex: index,
                   ),
-                ),
-                title: Text(player.displayName),
-                subtitle: Text(isCaptain ? 'Capitán' : 'Jugador'),
-                trailing: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      '${player.points} pts',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                  leading: CircleAvatar(
+                    child: Text(
+                      player.displayName.isNotEmpty
+                          ? player.displayName[0].toUpperCase()
+                          : '?',
+                    ),
+                  ),
+                  title: Text(player.displayName),
+                  subtitle: Text(isCaptain ? 'Capitán' : 'Jugador'),
+                  trailing: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '${player.points} pts',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${player.goals} ${player.goals == 1 ? "gol" : "goles"}',
-                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                    ),
-                  ],
+                      const SizedBox(height: 2),
+                      Text(
+                        '${player.goals} ${player.goals == 1 ? "gol" : "goles"}',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
                 ),
               );
             },
