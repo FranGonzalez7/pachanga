@@ -3,6 +3,9 @@ import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../models/membership.dart';
 
+// Criterios de ordenación disponibles para la lista de jugadores.
+enum PlayerSort { points, goals, name }
+
 class PlayersScreen extends StatefulWidget {
   const PlayersScreen({super.key});
 
@@ -16,13 +19,15 @@ class _PlayersScreenState extends State<PlayersScreen> {
 
   late final Future<List<Membership>> _playersFuture;
 
+  // Criterio de orden activo. Por defecto, por puntos.
+  PlayerSort _sort = PlayerSort.points;
+
   @override
   void initState() {
     super.initState();
     _playersFuture = _loadPlayers();
   }
 
-  // Obtiene el grupo del usuario actual y luego sus jugadores
   Future<List<Membership>> _loadPlayers() async {
     final uid = _authService.currentUser!.uid;
     final membership = await _firestoreService.getUserMembership(uid);
@@ -30,10 +35,92 @@ class _PlayersScreenState extends State<PlayersScreen> {
     return _firestoreService.getGroupMembers(membership.groupId);
   }
 
+  // Ordena la lista según el criterio activo. Trabaja sobre una copia
+  // para no mutar la lista original que viene del Future.
+  List<Membership> _sortedPlayers(List<Membership> players) {
+    final list = List<Membership>.from(players);
+    switch (_sort) {
+      case PlayerSort.points:
+        // Puntos desc, desempate por goles desc.
+        list.sort((a, b) {
+          final byPoints = b.points.compareTo(a.points);
+          if (byPoints != 0) return byPoints;
+          return b.goals.compareTo(a.goals);
+        });
+        break;
+      case PlayerSort.goals:
+        list.sort((a, b) => b.goals.compareTo(a.goals));
+        break;
+      case PlayerSort.name:
+        // Alfabético, ignorando mayúsculas/minúsculas.
+        list.sort(
+          (a, b) => a.displayName.toLowerCase().compareTo(
+            b.displayName.toLowerCase(),
+          ),
+        );
+        break;
+    }
+    return list;
+  }
+
+  // Menú para elegir el criterio de orden.
+  void _openSortMenu() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                'Ordenar por',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+            _sortOption('Puntos', PlayerSort.points),
+            _sortOption('Goles', PlayerSort.goals),
+            _sortOption('Nombre', PlayerSort.name),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Una opción del menú de orden. Marca con un check la activa.
+  Widget _sortOption(String label, PlayerSort value) {
+    final isActive = _sort == value;
+    return ListTile(
+      title: Text(label),
+      trailing: isActive ? const Icon(Icons.check, color: Colors.green) : null,
+      onTap: () {
+        setState(() => _sort = value);
+        Navigator.of(context).pop();
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Jugadores')),
+      appBar: AppBar(
+        title: const Text('Jugadores'),
+        actions: [
+          PopupMenuButton<PlayerSort>(
+            icon: const Icon(Icons.sort),
+            tooltip: 'Ordenar',
+            initialValue: _sort,
+            onSelected: (value) {
+              setState(() => _sort = value);
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: PlayerSort.points, child: Text('Puntos')),
+              PopupMenuItem(value: PlayerSort.goals, child: Text('Goles')),
+              PopupMenuItem(value: PlayerSort.name, child: Text('Nombre')),
+            ],
+          ),
+        ],
+      ),
       body: FutureBuilder<List<Membership>>(
         future: _playersFuture,
         builder: (context, snapshot) {
@@ -45,7 +132,8 @@ class _PlayersScreenState extends State<PlayersScreen> {
             return const Center(child: Text('No hay jugadores todavía.'));
           }
 
-          final players = snapshot.data!;
+          // Ordenamos en memoria según el criterio activo.
+          final players = _sortedPlayers(snapshot.data!);
 
           return ListView.builder(
             itemCount: players.length,
@@ -63,12 +151,23 @@ class _PlayersScreenState extends State<PlayersScreen> {
                 ),
                 title: Text(player.displayName),
                 subtitle: Text(isCaptain ? 'Capitán' : 'Jugador'),
-                trailing: Text(
-                  '${player.points} pts',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
+                trailing: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '${player.points} pts',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${player.goals} ${player.goals == 1 ? "gol" : "goles"}',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    ),
+                  ],
                 ),
               );
             },
