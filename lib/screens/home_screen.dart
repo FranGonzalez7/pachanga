@@ -123,6 +123,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   'Hola, ${membership.displayName} 👋',
                   style: const TextStyle(fontSize: 16, color: Colors.grey),
                 ),
+                const SizedBox(height: 20),
+                // Bloque "tú": stats personales.
+                _buildStatsBlock(membership, group.groupId),
                 const SizedBox(height: 24),
                 const Text(
                   'Próximo partido',
@@ -317,5 +320,117 @@ class _HomeScreenState extends State<HomeScreen> {
   String _formatDate(DateTime d) {
     final two = (int n) => n.toString().padLeft(2, '0');
     return '${two(d.day)}/${two(d.month)}/${d.year}  ${two(d.hour)}:${two(d.minute)}';
+  }
+
+  // Bloque "tú": puntos, posición en la clasificación y resumen personal.
+  Widget _buildStatsBlock(Membership membership, String groupId) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Puntos grandes + posición.
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Tus puntos',
+                      style: TextStyle(fontSize: 13, color: Colors.grey),
+                    ),
+                    Text(
+                      '${membership.points}',
+                      style: const TextStyle(
+                        fontSize: 40,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                // Posición: se calcula con una lectura puntual (foto).
+                FutureBuilder<({int position, int total})>(
+                  future: _firestoreService.getUserRanking(
+                    membership.userId,
+                    groupId,
+                  ),
+                  builder: (context, rankSnap) {
+                    if (!rankSnap.hasData) {
+                      // Mientras carga, un hueco discreto para no saltar el layout.
+                      return const SizedBox(
+                        width: 60,
+                        height: 40,
+                        child: Center(
+                          child: SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                      );
+                    }
+                    final rank = rankSnap.data!;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        const Text(
+                          'Posición',
+                          style: TextStyle(fontSize: 13, color: Colors.grey),
+                        ),
+                        Text(
+                          '${rank.position}º',
+                          style: const TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          'de ${rank.total}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ),
+            const Divider(height: 28),
+            // Mini-resumen: jugados, victorias, derrotas, goles.
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _statItem('Jugados', '${membership.matchesPlayed}'),
+                _statItem('Ganados', '${membership.wins}'),
+                _statItem('Perdidos', '${membership.losses}'),
+                _statItem('Goles', '${membership.goals}'),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Una columna pequeña del mini-resumen: número grande + etiqueta.
+  Widget _statItem(String label, String value) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 2),
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+      ],
+    );
   }
 }

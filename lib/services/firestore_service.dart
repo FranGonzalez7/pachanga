@@ -349,45 +349,82 @@ class FirestoreService {
     });
   }
 
-  // Termina un partido: calcula los puntos de cada jugador, los suma a su
-  // membresía (con suelo en 0) y marca el partido como 'played'. Todo en un
-  // batch atómico: o se aplica TODO, o no se aplica nada (protege los datos
-  // si algo falla a mitad). Operación irreversible.
+  // Termina un partido: calcula los puntos de cada jugador, actualiza sus
+  // estadísticas (puntos, goles, victorias/derrotas, partidos jugados) y marca
+  // el partido como 'played'. Todo en un batch atómico. Operación irreversible.
   Future<void> finishMatch(Match match) async {
-    // 1. Calculamos los puntos de este partido (lógica pura, sin Firestore).
+    // Puntos de este partido (lógica pura).
     final pointsPerPlayer = calculateMatchPoints(match);
 
-    // 2. Preparamos el batch (el "sobre" de escrituras).
     final batch = _db.batch();
 
-    // 3. Para cada jugador con puntos, leemos su membresía y preparamos el update.
-    for (final entry in pointsPerPlayer.entries) {
-      final playerId = entry.key;
-      final matchPoints = entry.value;
+    // Marcador final, para determinar quién ganó/perdió.
+    final scoreA = match.teamAScore;
+    final scoreB = match.teamBScore;
 
-      // Reconstruimos el ID determinista de la membresía: uid_groupId.
+    for (final slot in match.slots) {
+      final playerId = slot.playerId;
+      if (playerId == null) continue; // hueco vacío
+
+      // Resultado de ESTE jugador según su equipo.
+      final isTeamA = slot.team == Match.teamA;
+      final myScore = isTeamA ? scoreA : scoreB;
+      final rivalScore = isTeamA ? scoreB : scoreA;
+
+      final didWin = myScore > rivalScore;
+      final didLose = myScore < rivalScore;
+      // (empate: ni una cosa ni la otra)
+
+      final goalsScored = match.goals[playerId] ?? 0;
+      final matchPoints = pointsPerPlayer[playerId] ?? 0;
+
       final membershipRef = _db
           .collection('memberships')
           .doc('${playerId}_${match.groupId}');
 
       final membershipDoc = await membershipRef.get();
-      if (!membershipDoc.exists)
-        continue; // por seguridad: si no existe, la saltamos
+      if (!membershipDoc.exists) continue;
 
       final membership = Membership.fromMap(membershipDoc.data()!);
 
-      // Sumamos al total y aplicamos el suelo: nunca por debajo de 0.
+      // Nuevos totales (puntos con suelo en 0; el resto solo suman).
       final newPoints = (membership.points + matchPoints).clamp(0, 1 << 31);
+      final newGoals = membership.goals + goalsScored;
+      final newWins = membership.wins + (didWin ? 1 : 0);
+      final newLosses = membership.losses + (didLose ? 1 : 0);
+      final newMatchesPlayed = membership.matchesPlayed + 1;
 
-      // Preparamos (NO escribe todavía): solo actualizamos el campo points.
-      batch.update(membershipRef, {'points': newPoints});
+      batch.update(membershipRef, {
+        'points': newPoints,
+        'goals': newGoals,
+        'wins': newWins,
+        'losses': newLosses,
+        'matchesPlayed': newMatchesPlayed,
+      });
     }
 
-    // 4. Preparamos también el cambio de estado del partido.
+    // El partido pasa a 'played'.
     final matchRef = _db.collection('matches').doc(match.matchId);
     batch.update(matchRef, {'status': 'played'});
 
-    // 5. Commit: ahora SÍ se aplica todo de golpe (o nada si algo falla).
     await batch.commit();
+  }
+
+  // Calcula la posición de un usuario en la clasificación del grupo por puntos.
+  // Devuelve (posición, total de miembros). Posición 1 = líder.
+  Future<({int position, int total})> getUserRanking(
+    String userId,
+    String groupId,
+  ) async {
+    final members = await getGroupMembers(groupId);
+
+    // Ordenamos por puntos de mayor a menor.
+    members.sort((a, b) => b.points.compareTo(a.points));
+
+    // Buscamos en qué lugar cae el usuario.
+    final index = members.indexWhere((m) => m.userId == userId);
+
+    // index es 0-based; la posición para mostrar es index + 1.
+    return (position: index + 1, total: members.length);
   }
 }
