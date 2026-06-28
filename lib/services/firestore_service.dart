@@ -427,4 +427,20 @@ class FirestoreService {
     // index es 0-based; la posición para mostrar es index + 1.
     return (position: index + 1, total: members.length);
   }
+
+  // Devuelve los miembros del grupo ordenados por puntos (mayor a menor),
+  // desempatando por goles. Útil para clasificaciones y podios.
+  Future<List<Membership>> getGroupRanking(String groupId) async {
+    final members = await getGroupMembers(groupId);
+
+    members.sort((a, b) {
+      // Primer criterio: puntos (descendente).
+      final byPoints = b.points.compareTo(a.points);
+      if (byPoints != 0) return byPoints;
+      // Desempate: goles (descendente).
+      return b.goals.compareTo(a.goals);
+    });
+
+    return members;
+  }
 }
