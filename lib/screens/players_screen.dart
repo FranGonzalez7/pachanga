@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../models/membership.dart';
+import '../widgets/player_card_dialog.dart';
 
 // Criterios de ordenación disponibles para la lista de jugadores.
 enum PlayerSort { points, goals, name }
@@ -63,43 +64,6 @@ class _PlayersScreenState extends State<PlayersScreen> {
     return list;
   }
 
-  // Menú para elegir el criterio de orden.
-  void _openSortMenu() {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text(
-                'Ordenar por',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
-            _sortOption('Puntos', PlayerSort.points),
-            _sortOption('Goles', PlayerSort.goals),
-            _sortOption('Nombre', PlayerSort.name),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Una opción del menú de orden. Marca con un check la activa.
-  Widget _sortOption(String label, PlayerSort value) {
-    final isActive = _sort == value;
-    return ListTile(
-      title: Text(label),
-      trailing: isActive ? const Icon(Icons.check, color: Colors.green) : null,
-      onTap: () {
-        setState(() => _sort = value);
-        Navigator.of(context).pop();
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -142,6 +106,11 @@ class _PlayersScreenState extends State<PlayersScreen> {
               final isCaptain = player.role == 'captain';
 
               return ListTile(
+                onTap: () => PlayerCardDialog.show(
+                  context,
+                  players: players,
+                  initialIndex: index,
+                ),
                 leading: CircleAvatar(
                   child: Text(
                     player.displayName.isNotEmpty
