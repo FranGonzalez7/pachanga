@@ -443,4 +443,38 @@ class FirestoreService {
 
     return members;
   }
+
+  // Crea un jugador fantasma: una membresía sin cuenta asociada, creada
+  // por el capitán para alguien que no usa la app. Tiene su propio id
+  // generado (no viene de Auth), empieza con la puntuación base y stats a 0.
+  Future<Membership> createGhostPlayer({
+    required String groupId,
+    required String displayName,
+  }) async {
+    // Generamos un id único para el fantasma (no hay uid de Auth).
+    // Pedimos un id automático a Firestore, como en createGroup.
+    final ghostId = _db.collection('memberships').doc().id;
+
+    final membership = Membership(
+      userId: ghostId,
+      groupId: groupId,
+      role: 'player', // un fantasma nunca es capitán
+      displayName: displayName,
+      points: 100, // misma base que cualquier jugador
+      goals: 0,
+      wins: 0,
+      losses: 0,
+      matchesPlayed: 0,
+      joinedAt: DateTime.now(),
+      isGhost: true, // <-- lo que lo marca como fantasma
+    );
+
+    // El id del documento sigue tu patrón: userId_groupId.
+    await _db
+        .collection('memberships')
+        .doc('${ghostId}_$groupId')
+        .set(membership.toMap());
+
+    return membership;
+  }
 }

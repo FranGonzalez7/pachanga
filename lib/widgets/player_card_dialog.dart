@@ -117,7 +117,7 @@ class _PlayerCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
               Text(
-                isCaptain ? 'Capitán' : 'Jugador',
+                _roleLabel(),
                 style: TextStyle(fontSize: 14, color: Colors.grey[600]),
               ),
               const SizedBox(height: 16),
@@ -242,5 +242,11 @@ class _PlayerCard extends StatelessWidget {
     final parts = name.trim().split(' ');
     if (parts.length == 1) return parts[0][0].toUpperCase();
     return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+
+  // Etiqueta de rol: distingue capitán, jugador y fantasma.
+  String _roleLabel() {
+    if (player.isGhost) return 'Sin cuenta';
+    return player.role == 'captain' ? 'Capitán' : 'Jugador';
   }
 }

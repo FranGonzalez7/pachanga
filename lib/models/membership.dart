@@ -11,6 +11,9 @@ class Membership {
   final int losses;
   final int matchesPlayed;
   final DateTime joinedAt;
+  // Jugador fantasma: creado por el capitán, sin cuenta propia.
+  // Por defecto false (los jugadores normales tienen cuenta).
+  final bool isGhost;
 
   Membership({
     required this.userId,
@@ -23,6 +26,7 @@ class Membership {
     required this.losses,
     required this.matchesPlayed,
     required this.joinedAt,
+    this.isGhost = false,
   });
 
   // De Firestore (Map) a objeto Membership
@@ -38,6 +42,8 @@ class Membership {
       losses: data['losses'] as int,
       matchesPlayed: data['matchesPlayed'] as int,
       joinedAt: (data['joinedAt'] as Timestamp).toDate(),
+      // ?? false: las membresías viejas (sin el campo) son jugadores normales.
+      isGhost: data['isGhost'] as bool? ?? false,
     );
   }
 
@@ -54,6 +60,7 @@ class Membership {
       'losses': losses,
       'matchesPlayed': matchesPlayed,
       'joinedAt': Timestamp.fromDate(joinedAt),
+      'isGhost': isGhost,
     };
   }
 }

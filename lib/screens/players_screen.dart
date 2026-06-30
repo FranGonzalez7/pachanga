@@ -18,13 +18,14 @@ class _PlayersScreenState extends State<PlayersScreen> {
   final AuthService _authService = AuthService();
   final FirestoreService _firestoreService = FirestoreService();
 
-  late final Future<List<Membership>> _playersFuture;
+  late final String _myUid;
+  Membership? _myMembership; // mi membresía, para saber si soy capitán
+  late Future<List<Membership>> _playersFuture;
 
   // Criterio de orden activo. Por defecto, por puntos.
   PlayerSort _sort = PlayerSort.points;
 
-  // Mi propio uid, para resaltar mi fila en la lista.
-  late final String _myUid;
+  bool get _isCaptain => _myMembership?.role == 'captain';
 
   @override
   void initState() {
@@ -34,10 +35,19 @@ class _PlayersScreenState extends State<PlayersScreen> {
   }
 
   Future<List<Membership>> _loadPlayers() async {
-    final uid = _authService.currentUser!.uid;
-    final membership = await _firestoreService.getUserMembership(uid);
+    final membership = await _firestoreService.getUserMembership(_myUid);
+    if (mounted) {
+      setState(() => _myMembership = membership);
+    }
     if (membership == null) return [];
     return _firestoreService.getGroupMembers(membership.groupId);
+  }
+
+  // Recarga la lista (tras crear un fantasma, por ejemplo).
+  void _refreshPlayers() {
+    setState(() {
+      _playersFuture = _loadPlayers();
+    });
   }
 
   // Ordena la lista según el criterio activo. Trabaja sobre una copia
@@ -46,7 +56,6 @@ class _PlayersScreenState extends State<PlayersScreen> {
     final list = List<Membership>.from(players);
     switch (_sort) {
       case PlayerSort.points:
-        // Puntos desc, desempate por goles desc.
         list.sort((a, b) {
           final byPoints = b.points.compareTo(a.points);
           if (byPoints != 0) return byPoints;
@@ -57,7 +66,6 @@ class _PlayersScreenState extends State<PlayersScreen> {
         list.sort((a, b) => b.goals.compareTo(a.goals));
         break;
       case PlayerSort.name:
-        // Alfabético, ignorando mayúsculas/minúsculas.
         list.sort(
           (a, b) => a.displayName.toLowerCase().compareTo(
             b.displayName.toLowerCase(),
@@ -66,6 +74,63 @@ class _PlayersScreenState extends State<PlayersScreen> {
         break;
     }
     return list;
+  }
+
+  // Diálogo para crear un jugador fantasma: pide el nombre.
+  Future<void> _openCreateGhost() async {
+    final controller = TextEditingController();
+
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Nuevo jugador sin cuenta'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Crea un jugador para alguien que no usa la app. '
+              'Podrás colocarlo en los partidos como a cualquier otro.',
+              style: TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(
+                labelText: 'Nombre',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () {
+              final text = controller.text.trim();
+              if (text.isEmpty) return; // no creamos sin nombre
+              Navigator.of(context).pop(text);
+            },
+            child: const Text('Crear'),
+          ),
+        ],
+      ),
+    );
+
+    // Si canceló o no escribió nada, salimos.
+    if (name == null || name.isEmpty) return;
+    if (_myMembership == null) return;
+
+    await _firestoreService.createGhostPlayer(
+      groupId: _myMembership!.groupId,
+      displayName: name,
+    );
+
+    _refreshPlayers(); // la lista vuelve a cargar e incluye el nuevo fantasma
   }
 
   @override
@@ -100,7 +165,6 @@ class _PlayersScreenState extends State<PlayersScreen> {
             return const Center(child: Text('No hay jugadores todavía.'));
           }
 
-          // Ordenamos en memoria según el criterio activo.
           final players = _sortedPlayers(snapshot.data!);
 
           return ListView.builder(
@@ -108,12 +172,9 @@ class _PlayersScreenState extends State<PlayersScreen> {
             itemBuilder: (context, index) {
               final player = players[index];
               final isCaptain = player.role == 'captain';
-
               final isMe = player.userId == _myUid;
 
               return Container(
-                // Fondo sutil solo en mi fila, para localizarme rápido.
-                // Mismo azulito que el podio del Home, por coherencia.
                 color: isMe ? Colors.blue.withValues(alpha: 0.08) : null,
                 child: ListTile(
                   onTap: () => PlayerCardDialog.show(
@@ -129,7 +190,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
                     ),
                   ),
                   title: Text(player.displayName),
-                  subtitle: Text(isCaptain ? 'Capitán' : 'Jugador'),
+                  subtitle: Text(_subtitleFor(player, isCaptain)),
                   trailing: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.end,
@@ -154,6 +215,20 @@ class _PlayersScreenState extends State<PlayersScreen> {
           );
         },
       ),
+      // FAB solo para el capitán, mismo formato que el de Partidos.
+      floatingActionButton: _isCaptain
+          ? FloatingActionButton.extended(
+              onPressed: _openCreateGhost,
+              icon: const Icon(Icons.person_add),
+              label: const Text('Añadir jugador'),
+            )
+          : null,
     );
+  }
+
+  // Subtítulo de la fila: distingue capitán, jugador y fantasma.
+  String _subtitleFor(Membership player, bool isCaptain) {
+    if (player.isGhost) return 'Sin cuenta';
+    return isCaptain ? 'Capitán' : 'Jugador';
   }
 }
