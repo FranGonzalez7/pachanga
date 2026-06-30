@@ -478,6 +478,71 @@ class FirestoreService {
     return membership;
   }
 
+  // Actualiza el nombre de un jugador fantasma: en su membresía Y en los
+  // slots de todos los partidos donde aparezca, para que no quede el nombre
+  // viejo colgando en el campo. Todo en un batch atómico.
+  Future<void> updateGhostName({
+    required String userId,
+    required String groupId,
+    required String newName,
+  }) async {
+    final batch = _db.batch();
+
+    // 1. El nombre en la membresía del fantasma.
+    final membershipRef = _db
+        .collection('memberships')
+        .doc('${userId}_$groupId');
+    batch.update(membershipRef, {'displayName': newName});
+
+    // 2. El nombre en los slots de sus partidos (pieza reutilizable).
+    await _addPlayerNameUpdatesToBatch(
+      batch: batch,
+      userId: userId,
+      groupId: groupId,
+      newName: newName,
+    );
+
+    await batch.commit();
+  }
+
+  // Añade a un batch las actualizaciones necesarias para cambiar el
+  // playerName de un jugador en los slots de TODOS sus partidos del grupo.
+  // No hace commit: el que llama decide cuándo. Así se reutiliza para
+  // fantasmas y, en el futuro, para jugadores con cuenta.
+  Future<void> _addPlayerNameUpdatesToBatch({
+    required WriteBatch batch,
+    required String userId,
+    required String groupId,
+    required String newName,
+  }) async {
+    // Todos los partidos del grupo (cualquier estado: el nombre es una
+    // etiqueta, se actualiza también en el histórico).
+    final matches = await _db
+        .collection('matches')
+        .where('groupId', isEqualTo: groupId)
+        .get();
+
+    for (final doc in matches.docs) {
+      final match = Match.fromMap(doc.id, doc.data());
+
+      // ¿Aparece este jugador en algún slot de este partido?
+      final isInMatch = match.slots.any((s) => s.playerId == userId);
+      if (!isInMatch) continue; // si no está, no tocamos este partido
+
+      // Reescribimos sus slots con el nombre nuevo (el resto, igual).
+      final updatedSlots = match.slots.map((slot) {
+        if (slot.playerId == userId) {
+          return slot.copyWith(playerName: newName);
+        }
+        return slot;
+      }).toList();
+
+      batch.update(doc.reference, {
+        'slots': updatedSlots.map((s) => s.toMap()).toList(),
+      });
+    }
+  }
+
   // Elimina la membresía de un jugador del grupo (lo "echa").
   // Borrado suave: los partidos ya jugados (played) conservan su rastro
   // intacto. Pero en los partidos SCHEDULED (aún por jugar) se libera el

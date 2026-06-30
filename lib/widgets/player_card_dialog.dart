@@ -101,6 +101,55 @@ class _PlayerCardDialogState extends State<PlayerCardDialog> {
     widget.onChanged?.call();
   }
 
+  // Pide un nombre nuevo para un fantasma y lo guarda.
+  Future<void> _editName(Membership player) async {
+    final controller = TextEditingController(text: player.displayName);
+
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Editar nombre'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(
+            labelText: 'Nombre',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () {
+              final text = controller.text.trim();
+              if (text.isEmpty) return;
+              Navigator.of(context).pop(text);
+            },
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+
+    if (newName == null || newName.isEmpty) return;
+    if (newName == player.displayName) return; // sin cambios, no hacemos nada
+
+    await _firestoreService.updateGhostName(
+      userId: player.userId,
+      groupId: player.groupId,
+      newName: newName,
+    );
+
+    if (!mounted) return;
+    // Cerramos y avisamos a la lista para que recargue con el nombre nuevo.
+    Navigator.of(context).pop();
+    widget.onChanged?.call();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -113,13 +162,16 @@ class _PlayerCardDialogState extends State<PlayerCardDialog> {
           itemCount: widget.players.length,
           itemBuilder: (context, index) {
             final player = widget.players[index];
-            // El capitán puede borrar a otros (no a sí mismo).
             final canDelete =
                 widget.viewerIsCaptain && player.userId != widget.myUserId;
+            // Editar nombre: solo el capitán, y solo si es un fantasma.
+            final canEdit = widget.viewerIsCaptain && player.isGhost;
             return _PlayerCard(
               player: player,
               canDelete: canDelete,
+              canEdit: canEdit,
               onDelete: () => _confirmDelete(player),
+              onEdit: () => _editName(player),
             );
           },
         ),
@@ -133,12 +185,16 @@ class _PlayerCardDialogState extends State<PlayerCardDialog> {
 class _PlayerCard extends StatelessWidget {
   final Membership player;
   final bool canDelete;
+  final bool canEdit;
   final VoidCallback onDelete;
+  final VoidCallback onEdit;
 
   _PlayerCard({
     required this.player,
     required this.canDelete,
+    required this.canEdit,
     required this.onDelete,
+    required this.onEdit,
   });
 
   final FirestoreService _firestoreService = FirestoreService();
@@ -210,14 +266,32 @@ class _PlayerCard extends StatelessWidget {
               ),
             ),
             // Botón de borrar, solo si el capitán mira a otro jugador.
-            if (canDelete)
+            // Botones de acción del capitán, en la esquina superior derecha.
+            if (canEdit || canDelete)
               Positioned(
                 top: 8,
                 right: 8,
-                child: IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.red),
-                  tooltip: 'Eliminar jugador',
-                  onPressed: onDelete,
+                child: Row(
+                  children: [
+                    if (canEdit)
+                      IconButton(
+                        icon: const Icon(
+                          Icons.edit_outlined,
+                          color: Colors.blue,
+                        ),
+                        tooltip: 'Editar nombre',
+                        onPressed: onEdit,
+                      ),
+                    if (canDelete)
+                      IconButton(
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          color: Colors.red,
+                        ),
+                        tooltip: 'Eliminar jugador',
+                        onPressed: onDelete,
+                      ),
+                  ],
                 ),
               ),
           ],
