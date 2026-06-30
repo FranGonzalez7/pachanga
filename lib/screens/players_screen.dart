@@ -181,6 +181,10 @@ class _PlayersScreenState extends State<PlayersScreen> {
                     context,
                     players: players,
                     initialIndex: index,
+                    myUserId: _myUid,
+                    viewerIsCaptain: _isCaptain,
+                    onChanged:
+                        _refreshPlayers, // al borrar, la lista se recarga
                   ),
                   leading: CircleAvatar(
                     child: Text(

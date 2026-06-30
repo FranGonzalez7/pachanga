@@ -477,4 +477,55 @@ class FirestoreService {
 
     return membership;
   }
+
+  // Elimina la membresía de un jugador del grupo (lo "echa").
+  // Borrado suave: los partidos ya jugados (played) conservan su rastro
+  // intacto. Pero en los partidos SCHEDULED (aún por jugar) se libera el
+  // hueco que ocupaba, porque ya no debería contar para algo futuro.
+  // Los partidos inProgress se dejan en paz (su alineación está congelada).
+  // Todo en un batch atómico: o se aplica todo, o nada.
+  Future<void> removeMembership({
+    required String userId,
+    required String groupId,
+  }) async {
+    final batch = _db.batch();
+
+    // 1. Buscamos los partidos SCHEDULED del grupo.
+    final scheduledMatches = await _db
+        .collection('matches')
+        .where('groupId', isEqualTo: groupId)
+        .where('status', isEqualTo: 'scheduled')
+        .get();
+
+    // 2. En cada uno, si el jugador ocupa algún slot, lo liberamos.
+    for (final doc in scheduledMatches.docs) {
+      final match = Match.fromMap(doc.id, doc.data());
+
+      // ¿Está este jugador en algún slot de este partido?
+      final isInMatch = match.slots.any((s) => s.playerId == userId);
+      if (!isInMatch) continue; // si no está, no tocamos este partido
+
+      // Vaciamos los slots que ocupaba (deja el hueco libre y sin posición).
+      final updatedSlots = match.slots.map((slot) {
+        if (slot.playerId == userId) {
+          return slot.copyWith(clearPlayer: true, position: '');
+        }
+        return slot;
+      }).toList();
+
+      // Preparamos la actualización de los slots de este partido.
+      batch.update(doc.reference, {
+        'slots': updatedSlots.map((s) => s.toMap()).toList(),
+      });
+    }
+
+    // 3. Borramos la membresía (id determinista userId_groupId).
+    final membershipRef = _db
+        .collection('memberships')
+        .doc('${userId}_$groupId');
+    batch.delete(membershipRef);
+
+    // 4. Commit: slots liberados + membresía borrada, todo de golpe.
+    await batch.commit();
+  }
 }

@@ -4,27 +4,39 @@ import '../models/app_user.dart';
 import '../services/firestore_service.dart';
 
 // Diálogo con las cartas de jugador, deslizables horizontalmente.
-// Recibe la lista (en el orden actual) y el índice por el que empezar.
 class PlayerCardDialog extends StatefulWidget {
   final List<Membership> players;
   final int initialIndex;
+  final String myUserId;
+  final bool viewerIsCaptain;
+  final VoidCallback? onChanged;
 
   const PlayerCardDialog({
     super.key,
     required this.players,
     required this.initialIndex,
+    required this.myUserId,
+    required this.viewerIsCaptain,
+    this.onChanged,
   });
 
-  // Helper para abrir el diálogo cómodamente desde cualquier pantalla.
   static Future<void> show(
     BuildContext context, {
     required List<Membership> players,
     required int initialIndex,
+    required String myUserId,
+    required bool viewerIsCaptain,
+    VoidCallback? onChanged,
   }) {
     return showDialog(
       context: context,
-      builder: (_) =>
-          PlayerCardDialog(players: players, initialIndex: initialIndex),
+      builder: (_) => PlayerCardDialog(
+        players: players,
+        initialIndex: initialIndex,
+        myUserId: myUserId,
+        viewerIsCaptain: viewerIsCaptain,
+        onChanged: onChanged,
+      ),
     );
   }
 
@@ -33,12 +45,12 @@ class PlayerCardDialog extends StatefulWidget {
 }
 
 class _PlayerCardDialogState extends State<PlayerCardDialog> {
+  final FirestoreService _firestoreService = FirestoreService();
   late final PageController _pageController;
 
   @override
   void initState() {
     super.initState();
-    // viewportFraction < 1 deja asomar las cartas vecinas a los lados.
     _pageController = PageController(
       initialPage: widget.initialIndex,
       viewportFraction: 0.92,
@@ -47,22 +59,68 @@ class _PlayerCardDialogState extends State<PlayerCardDialog> {
 
   @override
   void dispose() {
-    _pageController.dispose(); // los controllers hay que cerrarlos
+    _pageController.dispose();
     super.dispose();
+  }
+
+  // Confirma y elimina a un jugador. La llama la carta desde su botón.
+  Future<void> _confirmDelete(Membership player) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Eliminar jugador'),
+        content: Text(
+          '¿Seguro que quieres eliminar a ${player.displayName} del grupo? '
+          'Sus estadísticas se perderán. Los partidos ya jugados no se '
+          'modifican. Esta acción no se puede deshacer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    await _firestoreService.removeMembership(
+      userId: player.userId,
+      groupId: player.groupId,
+    );
+
+    if (!mounted) return;
+    // Cerramos el diálogo entero y avisamos a la lista para que refresque.
+    Navigator.of(context).pop();
+    widget.onChanged?.call();
   }
 
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: Colors.transparent, // el fondo lo pone cada carta
+      backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(vertical: 40),
       child: SizedBox(
-        height: 560, // alto fijo del cromo (forma vertical)
+        height: 560,
         child: PageView.builder(
           controller: _pageController,
           itemCount: widget.players.length,
           itemBuilder: (context, index) {
-            return _PlayerCard(player: widget.players[index]);
+            final player = widget.players[index];
+            // El capitán puede borrar a otros (no a sí mismo).
+            final canDelete =
+                widget.viewerIsCaptain && player.userId != widget.myUserId;
+            return _PlayerCard(
+              player: player,
+              canDelete: canDelete,
+              onDelete: () => _confirmDelete(player),
+            );
           },
         ),
       ),
@@ -70,20 +128,24 @@ class _PlayerCardDialogState extends State<PlayerCardDialog> {
   }
 }
 
-// Una carta individual. Pinta al instante lo que viene de Membership
-// (nombre, puntos, stats) y lee el AppUser para foto y posiciones.
+// Una carta individual. Muestra los datos del jugador y, si procede,
+// un botón de borrar en la esquina superior derecha.
 class _PlayerCard extends StatelessWidget {
   final Membership player;
-  _PlayerCard({required this.player});
+  final bool canDelete;
+  final VoidCallback onDelete;
+
+  _PlayerCard({
+    required this.player,
+    required this.canDelete,
+    required this.onDelete,
+  });
 
   final FirestoreService _firestoreService = FirestoreService();
 
   @override
   Widget build(BuildContext context) {
-    final isCaptain = player.role == 'captain';
-
     return Padding(
-      // Separación entre cartas para que el "asomar" tenga aire.
       padding: const EdgeInsets.symmetric(horizontal: 6),
       child: Container(
         decoration: BoxDecoration(
@@ -97,67 +159,73 @@ class _PlayerCard extends StatelessWidget {
             ),
           ],
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // --- Zona foto (placeholder por ahora) ---
-              _buildAvatar(),
-              const SizedBox(height: 16),
-
-              // --- Nombre + rol ---
-              Text(
-                player.displayName,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
-                overflow: TextOverflow.ellipsis,
-              ),
-              Text(
-                _roleLabel(),
-                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-              ),
-              const SizedBox(height: 16),
-
-              // --- Puntos (dato estrella) ---
-              Text(
-                '${player.points}',
-                style: const TextStyle(
-                  fontSize: 44,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const Text(
-                'puntos',
-                style: TextStyle(fontSize: 13, color: Colors.grey),
-              ),
-              const SizedBox(height: 16),
-
-              // --- Posiciones preferidas (leídas del AppUser) ---
-              _buildPreferredPositions(),
-              const Divider(height: 28),
-
-              // --- Stats ---
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
+        // Stack: la carta debajo, el botón de borrar flotando en la esquina.
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _stat('Jugados', '${player.matchesPlayed}'),
-                  _stat('Ganados', '${player.wins}'),
-                  _stat('Perdidos', '${player.losses}'),
-                  _stat('Goles', '${player.goals}'),
+                  _buildAvatar(),
+                  const SizedBox(height: 16),
+                  Text(
+                    player.displayName,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    _roleLabel(),
+                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    '${player.points}',
+                    style: const TextStyle(
+                      fontSize: 44,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Text(
+                    'puntos',
+                    style: TextStyle(fontSize: 13, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildPreferredPositions(),
+                  const Divider(height: 28),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _stat('Jugados', '${player.matchesPlayed}'),
+                      _stat('Ganados', '${player.wins}'),
+                      _stat('Perdidos', '${player.losses}'),
+                      _stat('Goles', '${player.goals}'),
+                    ],
+                  ),
                 ],
               ),
-            ],
-          ),
+            ),
+            // Botón de borrar, solo si el capitán mira a otro jugador.
+            if (canDelete)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: IconButton(
+                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                  tooltip: 'Eliminar jugador',
+                  onPressed: onDelete,
+                ),
+              ),
+          ],
         ),
       ),
     );
   }
 
-  // Avatar: placeholder con iniciales (la foto vendrá del AppUser).
   Widget _buildAvatar() {
     return FutureBuilder<AppUser?>(
       future: _firestoreService.getUser(player.userId),
@@ -169,7 +237,6 @@ class _PlayerCard extends StatelessWidget {
             backgroundImage: NetworkImage(photoUrl),
           );
         }
-        // Sin foto: círculo con iniciales.
         return CircleAvatar(
           radius: 44,
           child: Text(
@@ -181,7 +248,6 @@ class _PlayerCard extends StatelessWidget {
     );
   }
 
-  // Posiciones preferidas del AppUser; placeholder si no hay.
   Widget _buildPreferredPositions() {
     return FutureBuilder<AppUser?>(
       future: _firestoreService.getUser(player.userId),
@@ -199,7 +265,6 @@ class _PlayerCard extends StatelessWidget {
           );
         }
 
-        // Pequeños chips con cada posición preferida.
         return Wrap(
           spacing: 6,
           runSpacing: 6,
@@ -244,7 +309,6 @@ class _PlayerCard extends StatelessWidget {
     return (parts[0][0] + parts[1][0]).toUpperCase();
   }
 
-  // Etiqueta de rol: distingue capitán, jugador y fantasma.
   String _roleLabel() {
     if (player.isGhost) return 'Sin cuenta';
     return player.role == 'captain' ? 'Capitán' : 'Jugador';
