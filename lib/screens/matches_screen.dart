@@ -21,6 +21,8 @@ class _MatchesScreenState extends State<MatchesScreen> {
   Membership? _membership;
   bool _loadingMembership = true;
 
+  bool get _isCaptain => _membership?.role == 'captain';
+
   @override
   void initState() {
     super.initState();
@@ -75,6 +77,62 @@ class _MatchesScreenState extends State<MatchesScreen> {
     );
   }
 
+  // Abre el formulario en modo EDICIÓN, precargado con el partido.
+  void _openEditMatch(Match match) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => CreateMatchSheet(
+        groupId: _membership!.groupId,
+        createdBy: _membership!.userId,
+        onMatchCreated: () {}, // el stream refresca la lista solo
+        matchToEdit: match, // <-- esto lo pone en modo editar
+      ),
+    );
+  }
+
+  // Confirma y elimina un partido.
+  Future<void> _confirmDeleteMatch(Match match) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Eliminar partido'),
+        content: Text(
+          match.status == 'inProgress'
+              ? 'Este partido está en juego. Si lo eliminas, se perderá '
+                    'junto con su puntuación en curso. Esta acción no se '
+                    'puede deshacer.'
+              : '¿Seguro que quieres eliminar este partido? '
+                    'Esta acción no se puede deshacer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _firestoreService.deleteMatch(match.matchId);
+      // El stream refresca la lista solo: el partido desaparece.
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo eliminar el partido.')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loadingMembership) {
@@ -86,7 +144,6 @@ class _MatchesScreenState extends State<MatchesScreen> {
       );
     }
 
-    // DefaultTabController gestiona las dos pestañas por nosotros.
     return DefaultTabController(
       length: 2,
       child: Scaffold(
@@ -111,12 +168,10 @@ class _MatchesScreenState extends State<MatchesScreen> {
 
             final allMatches = snapshot.data ?? [];
 
-            // Próximos: scheduled + inProgress, en orden ascendente (ya vienen así).
             final upcoming = allMatches
                 .where((m) => m.status != 'played')
                 .toList();
 
-            // Jugados: played, invertidos para que el más reciente quede arriba.
             final playedList = allMatches
                 .where((m) => m.status == 'played')
                 .toList()
@@ -131,7 +186,7 @@ class _MatchesScreenState extends State<MatchesScreen> {
             );
           },
         ),
-        floatingActionButton: (_membership?.role == 'captain')
+        floatingActionButton: _isCaptain
             ? FloatingActionButton.extended(
                 onPressed: _openCreateMatch,
                 icon: const Icon(Icons.add),
@@ -142,7 +197,6 @@ class _MatchesScreenState extends State<MatchesScreen> {
     );
   }
 
-  // Construye una lista de partidos, o un mensaje si está vacía.
   Widget _buildMatchList(List<Match> matches, String emptyMessage) {
     if (matches.isEmpty) {
       return Center(child: Text(emptyMessage));
@@ -158,7 +212,6 @@ class _MatchesScreenState extends State<MatchesScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(_formatDate(match.scheduledAt)),
-              // El lugar solo aparece si el partido tiene uno.
               if (match.location.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 2),
@@ -185,10 +238,57 @@ class _MatchesScreenState extends State<MatchesScreen> {
                 ),
             ],
           ),
-          trailing: _statusChip(match.status),
+          trailing: _buildTrailing(match),
           onTap: () => _openMatch(match),
         );
       },
+    );
+  }
+
+  // El trailing: la etiqueta de estado y, para el capitán, el menú de opciones.
+  Widget _buildTrailing(Match match) {
+    // Opciones disponibles según estado (played no tiene ninguna por ahora).
+    final canEdit = match.status == 'scheduled';
+    final canDelete = match.status != 'played';
+    final hasMenu = _isCaptain && (canEdit || canDelete);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _statusChip(match.status),
+        if (hasMenu)
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              if (value == 'edit') _openEditMatch(match);
+              if (value == 'delete') _confirmDeleteMatch(match);
+            },
+            itemBuilder: (context) => [
+              if (canEdit)
+                const PopupMenuItem(
+                  value: 'edit',
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit_outlined, size: 20),
+                      SizedBox(width: 12),
+                      Text('Editar'),
+                    ],
+                  ),
+                ),
+              if (canDelete)
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_outline, size: 20, color: Colors.red),
+                      SizedBox(width: 12),
+                      Text('Eliminar', style: TextStyle(color: Colors.red)),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+      ],
     );
   }
 

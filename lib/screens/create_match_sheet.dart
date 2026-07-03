@@ -1,16 +1,21 @@
 import 'package:flutter/material.dart';
 import '../services/firestore_service.dart';
+import '../models/match.dart';
 
 class CreateMatchSheet extends StatefulWidget {
   final String groupId;
   final String createdBy;
   final VoidCallback onMatchCreated;
+  // Si viene un partido, el formulario está en modo EDICIÓN.
+  // Si es null, en modo CREACIÓN.
+  final Match? matchToEdit;
 
   const CreateMatchSheet({
     super.key,
     required this.groupId,
     required this.createdBy,
     required this.onMatchCreated,
+    this.matchToEdit,
   });
 
   @override
@@ -20,34 +25,50 @@ class CreateMatchSheet extends StatefulWidget {
 class _CreateMatchSheetState extends State<CreateMatchSheet> {
   final FirestoreService _firestoreService = FirestoreService();
 
-  int _teamSize = 5; // por defecto 5v5
+  int _teamSize = 5;
   DateTime? _selectedDate;
   final TextEditingController _locationController = TextEditingController();
   bool _isLoading = false;
 
+  // ¿Estamos editando? (hay un partido de partida)
+  bool get _isEditing => widget.matchToEdit != null;
+
+  @override
+  void initState() {
+    super.initState();
+    // En modo edición, precargamos los datos del partido existente.
+    final match = widget.matchToEdit;
+    if (match != null) {
+      _teamSize = match.teamSize;
+      _selectedDate = match.scheduledAt;
+      _locationController.text = match.location;
+    }
+  }
+
   @override
   void dispose() {
-    _locationController.dispose(); // cerramos el controller al destruir
+    _locationController.dispose();
     super.dispose();
   }
 
-  // Abre el selector de fecha y luego el de hora
   Future<void> _pickDateTime() async {
     final now = DateTime.now();
     final date = await showDatePicker(
       context: context,
-      initialDate: now,
+      initialDate: _selectedDate ?? now,
       firstDate: now,
       lastDate: now.add(const Duration(days: 365)),
     );
-    if (date == null) return; // canceló
+    if (date == null) return;
 
     if (!mounted) return;
     final time = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay.now(),
+      initialTime: _selectedDate != null
+          ? TimeOfDay.fromDateTime(_selectedDate!)
+          : TimeOfDay.now(),
     );
-    if (time == null) return; // canceló
+    if (time == null) return;
 
     setState(() {
       _selectedDate = DateTime(
@@ -71,22 +92,38 @@ class _CreateMatchSheetState extends State<CreateMatchSheet> {
     setState(() => _isLoading = true);
 
     try {
-      await _firestoreService.createMatch(
-        groupId: widget.groupId,
-        type: '${_teamSize}v$_teamSize',
-        teamSize: _teamSize,
-        scheduledAt: _selectedDate!,
-        createdBy: widget.createdBy,
-        location: _locationController.text.trim(), // lugar (puede ir vacío)
-      );
+      if (_isEditing) {
+        // Modo edición: actualizamos lugar, fecha y hora del partido.
+        await _firestoreService.updateMatchDetails(
+          matchId: widget.matchToEdit!.matchId,
+          scheduledAt: _selectedDate!,
+          location: _locationController.text.trim(),
+        );
+      } else {
+        // Modo creación: creamos el partido nuevo.
+        await _firestoreService.createMatch(
+          groupId: widget.groupId,
+          type: '${_teamSize}v$_teamSize',
+          teamSize: _teamSize,
+          scheduledAt: _selectedDate!,
+          createdBy: widget.createdBy,
+          location: _locationController.text.trim(),
+        );
+      }
       if (mounted) {
-        Navigator.of(context).pop(); // cierra el modal
-        widget.onMatchCreated(); // avisa para refrescar la lista
+        Navigator.of(context).pop();
+        widget.onMatchCreated(); // avisa para refrescar
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se pudo crear el partido.')),
+          SnackBar(
+            content: Text(
+              _isEditing
+                  ? 'No se pudo editar el partido.'
+                  : 'No se pudo crear el partido.',
+            ),
+          ),
         );
         setState(() => _isLoading = false);
       }
@@ -106,9 +143,9 @@ class _CreateMatchSheetState extends State<CreateMatchSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Nuevo partido',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          Text(
+            _isEditing ? 'Editar partido' : 'Nuevo partido',
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 20),
           const Text('Tipo de partido'),
@@ -120,10 +157,20 @@ class _CreateMatchSheetState extends State<CreateMatchSheet> {
               return ChoiceChip(
                 label: Text('${size}v$size'),
                 selected: isSelected,
-                onSelected: (_) => setState(() => _teamSize = size),
+                // En edición, el tipo no se puede cambiar (regeneraría slots).
+                onSelected: _isEditing
+                    ? null
+                    : (_) => setState(() => _teamSize = size),
               );
             }).toList(),
           ),
+          if (_isEditing) ...[
+            const SizedBox(height: 4),
+            Text(
+              'El tipo no se puede cambiar al editar.',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            ),
+          ],
           const SizedBox(height: 20),
           const Text('Fecha y hora'),
           const SizedBox(height: 8),
@@ -155,7 +202,9 @@ class _CreateMatchSheetState extends State<CreateMatchSheet> {
                 ? const Center(child: CircularProgressIndicator())
                 : ElevatedButton(
                     onPressed: _submit,
-                    child: const Text('Crear partido'),
+                    child: Text(
+                      _isEditing ? 'Guardar cambios' : 'Crear partido',
+                    ),
                   ),
           ),
         ],
@@ -163,7 +212,6 @@ class _CreateMatchSheetState extends State<CreateMatchSheet> {
     );
   }
 
-  // Da formato legible a la fecha
   String _formatDate(DateTime d) {
     final two = (int n) => n.toString().padLeft(2, '0');
     return '${two(d.day)}/${two(d.month)}/${d.year}  ${two(d.hour)}:${two(d.minute)}';

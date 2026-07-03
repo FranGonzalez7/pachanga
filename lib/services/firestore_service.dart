@@ -595,4 +595,41 @@ class FirestoreService {
     // 4. Commit: slots liberados + membresía borrada, todo de golpe.
     await batch.commit();
   }
+
+  // Elimina un partido. Solo permitido si NO está jugado (played), porque
+  // un partido jugado ya repartió puntos y borrarlo dejaría stats huérfanas.
+  // La interfaz ya oculta la opción en played; esto es una red de seguridad.
+  Future<void> deleteMatch(String matchId) async {
+    final doc = await _db.collection('matches').doc(matchId).get();
+    if (!doc.exists) return;
+
+    final status = doc.data()!['status'] as String;
+    if (status == 'played') {
+      // No borramos partidos jugados: sus puntos ya están repartidos.
+      throw Exception('No se puede eliminar un partido ya jugado.');
+    }
+
+    await _db.collection('matches').doc(matchId).delete();
+  }
+
+  // Actualiza lugar, fecha y hora de un partido. Solo permitido si está
+  // scheduled (un partido en juego o jugado no se re-agenda).
+  Future<void> updateMatchDetails({
+    required String matchId,
+    required DateTime scheduledAt,
+    required String location,
+  }) async {
+    final doc = await _db.collection('matches').doc(matchId).get();
+    if (!doc.exists) return;
+
+    final status = doc.data()!['status'] as String;
+    if (status != 'scheduled') {
+      throw Exception('Solo se pueden editar partidos programados.');
+    }
+
+    await _db.collection('matches').doc(matchId).update({
+      'scheduledAt': Timestamp.fromDate(scheduledAt),
+      'location': location,
+    });
+  }
 }
