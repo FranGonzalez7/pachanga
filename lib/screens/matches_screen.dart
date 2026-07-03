@@ -154,7 +154,37 @@ class _MatchesScreenState extends State<MatchesScreen> {
         return ListTile(
           leading: const Icon(Icons.sports_soccer),
           title: Text(match.type),
-          subtitle: Text(_formatDate(match.scheduledAt)),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(_formatDate(match.scheduledAt)),
+              // El lugar solo aparece si el partido tiene uno.
+              if (match.location.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.place_outlined,
+                        size: 14,
+                        color: Colors.grey,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          match.location,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey[600],
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
           trailing: _statusChip(match.status),
           onTap: () => _openMatch(match),
         );

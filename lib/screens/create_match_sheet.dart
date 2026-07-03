@@ -22,7 +22,14 @@ class _CreateMatchSheetState extends State<CreateMatchSheet> {
 
   int _teamSize = 5; // por defecto 5v5
   DateTime? _selectedDate;
+  final TextEditingController _locationController = TextEditingController();
   bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _locationController.dispose(); // cerramos el controller al destruir
+    super.dispose();
+  }
 
   // Abre el selector de fecha y luego el de hora
   Future<void> _pickDateTime() async {
@@ -70,6 +77,7 @@ class _CreateMatchSheetState extends State<CreateMatchSheet> {
         teamSize: _teamSize,
         scheduledAt: _selectedDate!,
         createdBy: widget.createdBy,
+        location: _locationController.text.trim(), // lugar (puede ir vacío)
       );
       if (mounted) {
         Navigator.of(context).pop(); // cierra el modal
@@ -127,6 +135,18 @@ class _CreateMatchSheetState extends State<CreateMatchSheet> {
                   : _formatDate(_selectedDate!),
             ),
             onPressed: _pickDateTime,
+          ),
+          const SizedBox(height: 20),
+          const Text('Lugar'),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _locationController,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(
+              hintText: 'Ej: Polideportivo de la Vega',
+              prefixIcon: Icon(Icons.place_outlined),
+              border: OutlineInputBorder(),
+            ),
           ),
           const SizedBox(height: 24),
           SizedBox(

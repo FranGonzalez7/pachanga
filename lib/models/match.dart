@@ -14,6 +14,7 @@ class Match {
   final String createdBy;
   final DateTime scheduledAt;
   final DateTime createdAt;
+  final String location;
   // Goles "a mano" por equipo: goles en propia del rival, ajustes de disputa...
   // Empiezan en 0. NO confundir con teamAScore (ese es el marcador total).
   final int teamAExtraGoals;
@@ -30,6 +31,7 @@ class Match {
     required this.createdBy,
     required this.scheduledAt,
     required this.createdAt,
+    this.location = '',
     this.teamAExtraGoals = 0,
     this.teamBExtraGoals = 0,
     required this.slots,
@@ -75,6 +77,7 @@ class Match {
       createdBy: data['createdBy'] as String,
       scheduledAt: (data['scheduledAt'] as Timestamp).toDate(),
       createdAt: (data['createdAt'] as Timestamp).toDate(),
+      location: data['location'] as String? ?? '',
       // ?? 0 para que los partidos viejos (sin estos campos) no rompan.
       teamAExtraGoals: data['teamAExtraGoals'] as int? ?? 0,
       teamBExtraGoals: data['teamBExtraGoals'] as int? ?? 0,
@@ -94,6 +97,7 @@ class Match {
       'createdBy': createdBy,
       'scheduledAt': Timestamp.fromDate(scheduledAt),
       'createdAt': Timestamp.fromDate(createdAt),
+      'location': location,
       // OJO: ya NO escribimos teamAScore/teamBScore, son derivados.
       'teamAExtraGoals': teamAExtraGoals,
       'teamBExtraGoals': teamBExtraGoals,
@@ -112,6 +116,7 @@ class Match {
     String? createdBy,
     DateTime? scheduledAt,
     DateTime? createdAt,
+    String? location,
     int? teamAExtraGoals,
     int? teamBExtraGoals,
     List<Slot>? slots,
@@ -126,6 +131,7 @@ class Match {
       createdBy: createdBy ?? this.createdBy,
       scheduledAt: scheduledAt ?? this.scheduledAt,
       createdAt: createdAt ?? this.createdAt,
+      location: location ?? this.location,
       teamAExtraGoals: teamAExtraGoals ?? this.teamAExtraGoals,
       teamBExtraGoals: teamBExtraGoals ?? this.teamBExtraGoals,
       slots: slots ?? this.slots,

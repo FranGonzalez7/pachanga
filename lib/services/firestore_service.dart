@@ -164,6 +164,7 @@ class FirestoreService {
     required int teamSize,
     required DateTime scheduledAt,
     required String createdBy,
+    String location = '',
   }) async {
     final matchRef = _db.collection('matches').doc();
 
@@ -176,8 +177,9 @@ class FirestoreService {
       createdBy: createdBy,
       scheduledAt: scheduledAt,
       createdAt: DateTime.now(),
+      location: location, // <-- nuevo
       slots: _generateEmptySlots(teamSize),
-      goals: {}, // inicialmente no hay goles registrados
+      goals: {},
     );
 
     await matchRef.set(match.toMap());
