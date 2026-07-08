@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import '../logic/formations.dart';
 import '../models/match.dart';
 import '../models/membership.dart';
 import '../services/firestore_service.dart';
 import 'match_score_screen.dart';
-import 'package:flutter_svg/flutter_svg.dart';
-import '../logic/formations.dart';
 
 class MatchFieldScreen extends StatefulWidget {
   final Match match;
@@ -20,13 +20,16 @@ class MatchFieldScreen extends StatefulWidget {
   State<MatchFieldScreen> createState() => _MatchFieldScreenState();
 }
 
-class _MatchFieldScreenState extends State<MatchFieldScreen> {
+class _MatchFieldScreenState extends State<MatchFieldScreen>
+    with SingleTickerProviderStateMixin {
   final FirestoreService _firestoreService = FirestoreService();
   late Match _match;
   bool _isSaving = false;
   Membership? _selectedPlayer; // jugador que el capitán va a colocar
 
   List<Membership> _groupMembers = []; // todos los miembros del grupo
+
+  late TabController _tabController;
 
   static const List<String> _positions = [
     'Portero',
@@ -38,14 +41,34 @@ class _MatchFieldScreenState extends State<MatchFieldScreen> {
 
   bool get _isCaptain => widget.currentMembership.role == 'captain';
 
+  // Equipo de la tab activa (para el selector de formación del capitán)
+  String get _activeTeam =>
+      _tabController.index == 0 ? Match.teamA : Match.teamB;
+
+  String get _activeTeamLabel => _activeTeam == Match.teamA ? 'Rojo' : 'Azul';
+
+  String get _activeFormationName =>
+      _activeTeam == Match.teamA ? _match.formationA : _match.formationB;
+
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    // Repinta la AppBar al cambiar de tab (el botón muestra la formación activa)
+    _tabController.addListener(() {
+      if (mounted) setState(() {});
+    });
     _match = widget.match;
     _reloadMatch();
     if (_isCaptain) {
       _loadGroupMembers(); // solo el capitán necesita la lista
     }
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadGroupMembers() async {
@@ -198,6 +221,85 @@ class _MatchFieldScreenState extends State<MatchFieldScreen> {
     );
   }
 
+  // El capitán elige formación para el equipo de la tab activa.
+  // Si hay jugadores colocados en ese equipo, avisa: cambiarla los quita.
+  Future<void> _askFormation() async {
+    final team = _activeTeam;
+    final currentName = _activeFormationName;
+    final formations = formationsByType[_match.type] ?? [];
+
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'Formación del equipo $_activeTeamLabel',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            ...formations.map(
+              (f) => ListTile(
+                title: Text(f.name),
+                trailing: f.name == currentName
+                    ? const Icon(Icons.check, color: Colors.green)
+                    : null,
+                onTap: () => Navigator.of(context).pop(f.name),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    // Canceló, o eligió la que ya estaba: nada que hacer.
+    if (selected == null || selected == currentName) return;
+
+    // ¿Cuántos jugadores colocados tiene ESTE equipo? (el otro no se toca)
+    final occupied = _match.slots
+        .where((s) => s.team == team && s.playerId != null)
+        .length;
+
+    if (occupied > 0) {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Cambiar formación'),
+          content: Text(
+            'Cambiar la formación quitará a los $occupied jugadores '
+            'colocados del equipo $_activeTeamLabel. ¿Continuar?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Cambiar'),
+            ),
+          ],
+        ),
+      );
+      if (confirm != true) return;
+    }
+
+    setState(() => _isSaving = true);
+    await _firestoreService.setTeamFormation(
+      matchId: _match.matchId,
+      team: team,
+      formation: selected,
+    );
+    await _reloadMatch();
+    if (mounted) setState(() => _isSaving = false);
+  }
+
   Future<bool?> _confirmLeave() {
     return showDialog<bool>(
       context: context,
@@ -313,7 +415,7 @@ class _MatchFieldScreenState extends State<MatchFieldScreen> {
         MaterialPageRoute(
           builder: (context) => MatchScoreScreen(
             match: _match,
-            currentMembership: widget.currentMembership, // NUEVO
+            currentMembership: widget.currentMembership,
           ),
         ),
       );
@@ -322,62 +424,71 @@ class _MatchFieldScreenState extends State<MatchFieldScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(_match.type),
-          actions: [
-            if (_isCaptain)
-              IconButton(
-                icon: const Icon(Icons.cleaning_services),
-                tooltip: 'Vaciar el campo',
-                onPressed: _clearField,
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_match.type),
+        actions: [
+          // Selector de formación del equipo activo (solo capitán, solo scheduled)
+          if (_isCaptain && _match.status == 'scheduled')
+            TextButton.icon(
+              onPressed: _askFormation,
+              icon: Text(
+                getFormation(_match.type, _activeFormationName).name,
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
-          ],
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: 'Equipo Rojo'),
-              Tab(text: 'Equipo Azul'),
-            ],
-          ),
-        ),
-        body: Column(
-          children: [
-            Expanded(
-              child: Stack(
-                children: [
-                  TabBarView(
-                    children: [
-                      // Rojo (A) defiende la portería de arriba: espejo.
-                      _buildTeamField(Match.teamA, Colors.red, mirror: true),
-                      // Azul (B) defiende abajo: coordenadas tal cual.
-                      _buildTeamField(Match.teamB, Colors.blue, mirror: false),
-                    ],
-                  ),
-                  if (_isSaving)
-                    Container(
-                      color: Colors.black26,
-                      child: const Center(child: CircularProgressIndicator()),
-                    ),
-                ],
-              ),
+              label: const Icon(Icons.arrow_drop_down),
             ),
-            if (_isCaptain) _buildAvailablePlayersBar(),
-            if (_isCaptain && _match.status == 'scheduled')
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.play_arrow),
-                    label: const Text('Comenzar partido'),
-                    onPressed: _startMatch,
+          if (_isCaptain)
+            IconButton(
+              icon: const Icon(Icons.cleaning_services),
+              tooltip: 'Vaciar el campo',
+              onPressed: _clearField,
+            ),
+        ],
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Equipo Rojo'),
+            Tab(text: 'Equipo Azul'),
+          ],
+        ),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: Stack(
+              children: [
+                TabBarView(
+                  controller: _tabController,
+                  children: [
+                    // Rojo (A) defiende la portería de arriba: espejo.
+                    _buildTeamField(Match.teamA, Colors.red, mirror: true),
+                    // Azul (B) defiende abajo: coordenadas tal cual.
+                    _buildTeamField(Match.teamB, Colors.blue, mirror: false),
+                  ],
+                ),
+                if (_isSaving)
+                  Container(
+                    color: Colors.black26,
+                    child: const Center(child: CircularProgressIndicator()),
                   ),
+              ],
+            ),
+          ),
+          if (_isCaptain) _buildAvailablePlayersBar(),
+          if (_isCaptain && _match.status == 'scheduled')
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.play_arrow),
+                  label: const Text('Comenzar partido'),
+                  onPressed: _startMatch,
                 ),
               ),
-          ],
-        ),
+            ),
+        ],
       ),
     );
   }
