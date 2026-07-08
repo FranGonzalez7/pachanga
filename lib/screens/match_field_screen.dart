@@ -4,6 +4,7 @@ import '../models/membership.dart';
 import '../services/firestore_service.dart';
 import 'match_score_screen.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../logic/formations.dart';
 
 class MatchFieldScreen extends StatefulWidget {
   final Match match;
@@ -321,76 +322,62 @@ class _MatchFieldScreenState extends State<MatchFieldScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_match.type),
-        actions: [
-          if (_isCaptain)
-            IconButton(
-              icon: const Icon(Icons.cleaning_services),
-              tooltip: 'Vaciar el campo',
-              onPressed: _clearField,
-            ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: Stack(
-              children: [
-                Expanded(
-                  child: Stack(
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(_match.type),
+          actions: [
+            if (_isCaptain)
+              IconButton(
+                icon: const Icon(Icons.cleaning_services),
+                tooltip: 'Vaciar el campo',
+                onPressed: _clearField,
+              ),
+          ],
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'Equipo Rojo'),
+              Tab(text: 'Equipo Azul'),
+            ],
+          ),
+        ),
+        body: Column(
+          children: [
+            Expanded(
+              child: Stack(
+                children: [
+                  TabBarView(
                     children: [
-                      // Campo de fútbol de fondo (SVG a pantalla completa)
-                      Positioned.fill(
-                        child: SvgPicture.asset(
-                          'assets/field.svg',
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                      // Burbujas encima (renderizado provisional, cambiará con las formaciones)
-                      Column(
-                        children: [
-                          Expanded(
-                            child: _buildTeamHalf(_teamAIndexes(), Colors.red),
-                          ),
-                          Expanded(
-                            child: _buildTeamHalf(_teamBIndexes(), Colors.blue),
-                          ),
-                        ],
-                      ),
-                      if (_isSaving)
-                        Container(
-                          color: Colors.black26,
-                          child: const Center(
-                            child: CircularProgressIndicator(),
-                          ),
-                        ),
+                      // Rojo (A) defiende la portería de arriba: espejo.
+                      _buildTeamField(Match.teamA, Colors.red, mirror: true),
+                      // Azul (B) defiende abajo: coordenadas tal cual.
+                      _buildTeamField(Match.teamB, Colors.blue, mirror: false),
                     ],
                   ),
-                ),
-                if (_isSaving)
-                  Container(
-                    color: Colors.black26,
-                    child: const Center(child: CircularProgressIndicator()),
-                  ),
-              ],
-            ),
-          ),
-          if (_isCaptain) _buildAvailablePlayersBar(),
-          if (_isCaptain && _match.status == 'scheduled')
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.play_arrow),
-                  label: const Text('Comenzar partido'),
-                  onPressed: _startMatch,
-                ),
+                  if (_isSaving)
+                    Container(
+                      color: Colors.black26,
+                      child: const Center(child: CircularProgressIndicator()),
+                    ),
+                ],
               ),
             ),
-        ],
+            if (_isCaptain) _buildAvailablePlayersBar(),
+            if (_isCaptain && _match.status == 'scheduled')
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.play_arrow),
+                    label: const Text('Comenzar partido'),
+                    onPressed: _startMatch,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -478,18 +465,45 @@ class _MatchFieldScreenState extends State<MatchFieldScreen> {
     return list;
   }
 
-  Widget _buildTeamHalf(List<int> slotIndexes, Color teamColor) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Wrap(
-        alignment: WrapAlignment.center,
-        runAlignment: WrapAlignment.spaceEvenly,
-        spacing: 16,
-        runSpacing: 16,
-        children: slotIndexes
-            .map((index) => _buildBubble(index, teamColor))
-            .toList(),
-      ),
+  // Campo completo de un equipo: SVG de fondo y sus burbujas colocadas
+  // según la formación guardada en el partido.
+  Widget _buildTeamField(String team, Color teamColor, {required bool mirror}) {
+    final slotIndexes = team == Match.teamA ? _teamAIndexes() : _teamBIndexes();
+    final formationName = team == Match.teamA
+        ? _match.formationA
+        : _match.formationB;
+    final formation = getFormation(_match.type, formationName);
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        SvgPicture.asset('assets/field.svg', fit: BoxFit.cover),
+        for (int i = 0; i < slotIndexes.length; i++)
+          _buildPositionedBubble(
+            slotIndex: slotIndexes[i],
+            // Contrato del catálogo: la coordenada i va con el slot i del equipo.
+            coord: i < formation.positions.length
+                ? formation.positions[i]
+                : const Offset(0.5, 0.5), // red de seguridad: al centro
+            teamColor: teamColor,
+            mirror: mirror,
+          ),
+      ],
+    );
+  }
+
+  // Convierte la coordenada relativa (0..1) en un Alignment (-1..1),
+  // aplicando el espejo vertical si el equipo defiende la portería de arriba.
+  Widget _buildPositionedBubble({
+    required int slotIndex,
+    required Offset coord,
+    required Color teamColor,
+    required bool mirror,
+  }) {
+    final dy = mirror ? 1 - coord.dy : coord.dy;
+    return Align(
+      alignment: Alignment(coord.dx * 2 - 1, dy * 2 - 1),
+      child: _buildBubble(slotIndex, teamColor),
     );
   }
 

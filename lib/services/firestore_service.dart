@@ -178,7 +178,7 @@ class FirestoreService {
       createdBy: createdBy,
       scheduledAt: scheduledAt,
       createdAt: DateTime.now(),
-      location: location, // <-- nuevo
+      location: location, 
       formationA: defaultFormationByType[type] ?? '',
       formationB: defaultFormationByType[type] ?? '',
       slots: _generateEmptySlots(teamSize),
