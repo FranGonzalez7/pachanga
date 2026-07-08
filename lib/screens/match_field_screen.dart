@@ -3,6 +3,7 @@ import '../models/match.dart';
 import '../models/membership.dart';
 import '../services/firestore_service.dart';
 import 'match_score_screen.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class MatchFieldScreen extends StatefulWidget {
   final Match match;
@@ -337,17 +338,34 @@ class _MatchFieldScreenState extends State<MatchFieldScreen> {
           Expanded(
             child: Stack(
               children: [
-                Container(
-                  color: const Color(0xFF2E7D32),
-                  child: Column(
+                Expanded(
+                  child: Stack(
                     children: [
-                      Expanded(
-                        child: _buildTeamHalf(_teamAIndexes(), Colors.red),
+                      // Campo de fútbol de fondo (SVG a pantalla completa)
+                      Positioned.fill(
+                        child: SvgPicture.asset(
+                          'assets/field.svg',
+                          fit: BoxFit.cover,
+                        ),
                       ),
-                      Container(height: 2, color: Colors.white),
-                      Expanded(
-                        child: _buildTeamHalf(_teamBIndexes(), Colors.blue),
+                      // Burbujas encima (renderizado provisional, cambiará con las formaciones)
+                      Column(
+                        children: [
+                          Expanded(
+                            child: _buildTeamHalf(_teamAIndexes(), Colors.red),
+                          ),
+                          Expanded(
+                            child: _buildTeamHalf(_teamBIndexes(), Colors.blue),
+                          ),
+                        ],
                       ),
+                      if (_isSaving)
+                        Container(
+                          color: Colors.black26,
+                          child: const Center(
+                            child: CircularProgressIndicator(),
+                          ),
+                        ),
                     ],
                   ),
                 ),
