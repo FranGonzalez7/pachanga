@@ -6,6 +6,7 @@ import '../models/membership.dart';
 import '../models/match.dart';
 import '../models/slot.dart';
 import '../logic/match_scoring.dart';
+import '../logic/formations.dart';
 
 class FirestoreService {
   // Referencia a la base de datos
@@ -178,6 +179,8 @@ class FirestoreService {
       scheduledAt: scheduledAt,
       createdAt: DateTime.now(),
       location: location, // <-- nuevo
+      formationA: defaultFormationByType[type] ?? '',
+      formationB: defaultFormationByType[type] ?? '',
       slots: _generateEmptySlots(teamSize),
       goals: {},
     );
@@ -308,6 +311,45 @@ class FirestoreService {
 
     await matchRef.update({
       'slots': clearedSlots.map((slot) => slot.toMap()).toList(),
+    });
+  }
+
+  // Cambia la formación de un equipo y vacía los slots de ESE equipo,
+  // en una sola escritura: nunca queda un estado intermedio con la
+  // formación nueva y los jugadores aún colocados en la vieja.
+  // Solo permitido en partidos scheduled (red de seguridad; la interfaz
+  // ya limita el botón, pero el servicio no se fía).
+  Future<void> setTeamFormation({
+    required String matchId,
+    required String team, // Match.teamA o Match.teamB
+    required String formation,
+  }) async {
+    final matchRef = _db.collection('matches').doc(matchId);
+    final doc = await matchRef.get();
+    if (!doc.exists) return;
+
+    final match = Match.fromMap(doc.id, doc.data()!);
+
+    if (match.status != 'scheduled') {
+      throw Exception(
+        'Solo se puede cambiar la formación de un partido programado.',
+      );
+    }
+
+    // Vaciamos solo los huecos del equipo afectado; el otro ni se entera.
+    final updatedSlots = match.slots.map((slot) {
+      if (slot.team == team) {
+        return slot.copyWith(clearPlayer: true, position: '');
+      }
+      return slot;
+    }).toList();
+
+    // El nombre del campo depende del equipo.
+    final formationField = team == Match.teamA ? 'formationA' : 'formationB';
+
+    await matchRef.update({
+      formationField: formation,
+      'slots': updatedSlots.map((s) => s.toMap()).toList(),
     });
   }
 

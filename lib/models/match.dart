@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'slot.dart';
+import '../logic/formations.dart';
 
 class Match {
   // Valores que usamos para distinguir equipo en slot.team.
@@ -19,6 +20,10 @@ class Match {
   // Empiezan en 0. NO confundir con teamAScore (ese es el marcador total).
   final int teamAExtraGoals;
   final int teamBExtraGoals;
+  // Formación táctica de cada equipo (nombre del catálogo, ej. "1-2-1").
+  // Solo afecta a DÓNDE se dibujan las burbujas, nunca a la puntuación.
+  final String formationA;
+  final String formationB;
   final List<Slot> slots;
   final Map<String, int> goals; // playerId del jugador -> goles en este partido
 
@@ -34,6 +39,8 @@ class Match {
     this.location = '',
     this.teamAExtraGoals = 0,
     this.teamBExtraGoals = 0,
+    this.formationA = '',
+    this.formationB = '',
     required this.slots,
     required this.goals,
   });
@@ -81,6 +88,14 @@ class Match {
       // ?? 0 para que los partidos viejos (sin estos campos) no rompan.
       teamAExtraGoals: data['teamAExtraGoals'] as int? ?? 0,
       teamBExtraGoals: data['teamBExtraGoals'] as int? ?? 0,
+      formationA:
+          data['formationA'] as String? ??
+          defaultFormationByType[data['type'] as String] ??
+          '',
+      formationB:
+          data['formationB'] as String? ??
+          defaultFormationByType[data['type'] as String] ??
+          '',
       slots: (data['slots'] as List<dynamic>)
           .map((slotData) => Slot.fromMap(slotData as Map<String, dynamic>))
           .toList(),
@@ -101,6 +116,8 @@ class Match {
       // OJO: ya NO escribimos teamAScore/teamBScore, son derivados.
       'teamAExtraGoals': teamAExtraGoals,
       'teamBExtraGoals': teamBExtraGoals,
+      'formationA': formationA,
+      'formationB': formationB,
       'slots': slots.map((slot) => slot.toMap()).toList(),
       'goals': goals,
     };
@@ -119,6 +136,8 @@ class Match {
     String? location,
     int? teamAExtraGoals,
     int? teamBExtraGoals,
+    String? formationA,
+    String? formationB,
     List<Slot>? slots,
     Map<String, int>? goals,
   }) {
@@ -134,6 +153,8 @@ class Match {
       location: location ?? this.location,
       teamAExtraGoals: teamAExtraGoals ?? this.teamAExtraGoals,
       teamBExtraGoals: teamBExtraGoals ?? this.teamBExtraGoals,
+      formationA: formationA ?? this.formationA,
+      formationB: formationB ?? this.formationB,
       slots: slots ?? this.slots,
       goals: goals ?? this.goals,
     );
