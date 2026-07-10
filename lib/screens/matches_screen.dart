@@ -236,6 +236,26 @@ class _MatchesScreenState extends State<MatchesScreen> {
                     ],
                   ),
                 ),
+              // Huecos ocupados/total: solo tiene sentido en partidos aún por
+              // jugar (scheduled). En inProgress/played no se muestra.
+              if (match.status == 'scheduled')
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.groups_outlined,
+                        size: 14,
+                        color: Colors.grey[600],
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${_occupiedCount(match)} de ${match.slots.length} apuntados',
+                        style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ),
           trailing: _buildTrailing(match),
@@ -245,6 +265,17 @@ class _MatchesScreenState extends State<MatchesScreen> {
     );
   }
 
+  // Cuántos huecos del partido están ocupados (tienen jugador).
+  int _occupiedCount(Match match) {
+    return match.slots.where((s) => s.playerId != null).length;
+  }
+
+  // ¿Estoy yo apuntado a este partido? (alguno de mis slots me tiene a mí)
+  bool _isSignedUp(Match match) {
+    final myUid = _membership!.userId;
+    return match.slots.any((s) => s.playerId == myUid);
+  }
+
   // El trailing: la etiqueta de estado y, para el capitán, el menú de opciones.
   Widget _buildTrailing(Match match) {
     // Opciones disponibles según estado (played no tiene ninguna por ahora).
@@ -252,9 +283,17 @@ class _MatchesScreenState extends State<MatchesScreen> {
     final canDelete = match.status != 'played';
     final hasMenu = _isCaptain && (canEdit || canDelete);
 
+    // El check de "apuntado" solo en partidos por jugar (scheduled).
+    final showSignedUp = match.status == 'scheduled' && _isSignedUp(match);
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (showSignedUp)
+          Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: Icon(Icons.check_circle, size: 20, color: Colors.green[600]),
+          ),
         _statusChip(match.status),
         if (hasMenu)
           PopupMenuButton<String>(
