@@ -202,16 +202,22 @@ class _MatchesScreenState extends State<MatchesScreen> {
       return Center(child: Text(emptyMessage));
     }
     return ListView.builder(
+      padding: const EdgeInsets.only(bottom: 88),
       itemCount: matches.length,
       itemBuilder: (context, index) {
         final match = matches[index];
         return ListTile(
-          leading: const Icon(Icons.sports_soccer),
-          title: Text(match.type),
+          // Margen estándar del ListTile (16 a los lados), pero recortado a la
+          // derecha para que el menú de tres puntos quede más pegado al borde.
+          contentPadding: const EdgeInsets.only(left: 16, right: 4),
+          leading: _buildLeading(match),
+          title: Text(
+            _formatDate(match.scheduledAt),
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
           subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(_formatDate(match.scheduledAt)),
               if (match.location.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 2),
@@ -238,6 +244,8 @@ class _MatchesScreenState extends State<MatchesScreen> {
                 ),
               // Huecos ocupados/total: solo tiene sentido en partidos aún por
               // jugar (scheduled). En inProgress/played no se muestra.
+              // El tic de "apuntado" vive aquí, junto al recuento: se lee de
+              // corrido ("2 de 10 apuntados ✓").
               if (match.status == 'scheduled')
                 Padding(
                   padding: const EdgeInsets.only(top: 2),
@@ -253,6 +261,14 @@ class _MatchesScreenState extends State<MatchesScreen> {
                         '${_occupiedCount(match)} de ${match.slots.length} apuntados',
                         style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                       ),
+                      if (_isSignedUp(match)) ...[
+                        const SizedBox(width: 6),
+                        Icon(
+                          Icons.check_circle,
+                          size: 16,
+                          color: Colors.green[600],
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -263,6 +279,35 @@ class _MatchesScreenState extends State<MatchesScreen> {
         );
       },
     );
+  }
+
+  // Columna izquierda de la tarjeta: icono png del estado + tipo debajo.
+  Widget _buildLeading(Match match) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Image.asset(_statusIcon(match.status), width: 32, height: 32),
+        const SizedBox(height: 4),
+        Text(
+          match.type,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+        ),
+      ],
+    );
+  }
+
+  // El png que identifica cada estado. Viven en assets/icons/.
+  String _statusIcon(String status) {
+    switch (status) {
+      case 'inProgress':
+        return 'assets/icons/marcador.png';
+      case 'played':
+        return 'assets/icons/noticias.png';
+      case 'scheduled':
+      default:
+        return 'assets/icons/estrategia.png';
+    }
   }
 
   // Cuántos huecos del partido están ocupados (tienen jugador).
@@ -283,18 +328,13 @@ class _MatchesScreenState extends State<MatchesScreen> {
     final canDelete = match.status != 'played';
     final hasMenu = _isCaptain && (canEdit || canDelete);
 
-    // El check de "apuntado" solo en partidos por jugar (scheduled).
-    final showSignedUp = match.status == 'scheduled' && _isSignedUp(match);
-
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (showSignedUp)
-          Padding(
-            padding: const EdgeInsets.only(right: 6),
-            child: Icon(Icons.check_circle, size: 20, color: Colors.green[600]),
-          ),
         _statusChip(match.status),
+        // Menú pegado al borde derecho. Si no hay menú (jugador raso, o played),
+        // reservamos el mismo ancho con un hueco para que las chips queden
+        // alineadas entre todas las tarjetas.
         if (hasMenu)
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
@@ -326,11 +366,14 @@ class _MatchesScreenState extends State<MatchesScreen> {
                   ),
                 ),
             ],
-          ),
+          )
+        else
+          const SizedBox(width: 48),
       ],
     );
   }
 
+  // Chip de estado, compacta. Colores por estado, sin caducidad de significado.
   Widget _statusChip(String status) {
     late final String label;
     late final Color color;
@@ -352,16 +395,16 @@ class _MatchesScreenState extends State<MatchesScreen> {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
         label,
         style: TextStyle(
           color: color,
-          fontSize: 12,
+          fontSize: 11,
           fontWeight: FontWeight.w600,
         ),
       ),
