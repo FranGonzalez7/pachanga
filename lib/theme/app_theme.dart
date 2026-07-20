@@ -77,10 +77,10 @@ class AppTheme {
     return base.copyWith(
       textTheme: _buildTextTheme(base.textTheme),
 
-      // AppBar: fondo crema, sin sombra, título en tinta.
+      // AppBar: fondo crema, sin sombra, título e iconos en verde.
       appBarTheme: const AppBarTheme(
         backgroundColor: kCream,
-        foregroundColor: kInk,
+        foregroundColor: kGreen,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,

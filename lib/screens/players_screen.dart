@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../models/membership.dart';
+import '../theme/app_theme.dart';
+import '../widgets/app_bar_title.dart';
 import '../widgets/player_card_dialog.dart';
 
 // Criterios de ordenación disponibles para la lista de jugadores.
@@ -90,17 +92,14 @@ class _PlayersScreenState extends State<PlayersScreen> {
             const Text(
               'Crea un jugador para alguien que no usa la app. '
               'Podrás colocarlo en los partidos como a cualquier otro.',
-              style: TextStyle(fontSize: 13, color: Colors.grey),
+              style: TextStyle(fontSize: 13, color: AppTheme.kInkSoft),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: controller,
               autofocus: true,
               textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(
-                labelText: 'Nombre',
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(labelText: 'Nombre'),
             ),
           ],
         ),
@@ -137,7 +136,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Jugadores'),
+        title: const AppBarTitle('Jugadores'),
         actions: [
           PopupMenuButton<PlayerSort>(
             icon: const Icon(Icons.sort),
@@ -175,7 +174,8 @@ class _PlayersScreenState extends State<PlayersScreen> {
               final isMe = player.userId == _myUid;
 
               return Container(
-                color: isMe ? Colors.blue.withValues(alpha: 0.08) : null,
+                // "Esto eres tú": resaltado en ámbar, coherente con el podio.
+                color: isMe ? AppTheme.kAmber.withValues(alpha: 0.15) : null,
                 child: ListTile(
                   onTap: () => PlayerCardDialog.show(
                     context,
@@ -209,7 +209,10 @@ class _PlayersScreenState extends State<PlayersScreen> {
                       const SizedBox(height: 2),
                       Text(
                         '${player.goals} ${player.goals == 1 ? "gol" : "goles"}',
-                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppTheme.kInkSoft,
+                        ),
                       ),
                     ],
                   ),

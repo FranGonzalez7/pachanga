@@ -4,6 +4,9 @@ import '../services/firestore_service.dart';
 import '../models/group.dart';
 import '../models/membership.dart';
 import '../models/match.dart';
+import '../theme/app_theme.dart';
+import '../widgets/status_chip.dart';
+import '../widgets/app_bar_title.dart';
 import 'settings_screen.dart';
 import 'match_field_screen.dart';
 import 'match_score_screen.dart';
@@ -94,7 +97,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
         return Scaffold(
           appBar: AppBar(
-            title: Text(group.name),
+            title: AppBarTitle(group.name),
             actions: [
               if (isCaptain)
                 IconButton(
@@ -123,7 +126,10 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Text(
                   'Hola, ${membership.displayName} 👋',
-                  style: const TextStyle(fontSize: 16, color: Colors.grey),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: AppTheme.kInkSoft,
+                  ),
                 ),
                 const SizedBox(height: 16),
 
@@ -250,7 +256,7 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 const Text(
                   'Tus puntos',
-                  style: TextStyle(fontSize: 13, color: Colors.grey),
+                  style: TextStyle(fontSize: 13, color: AppTheme.kInkSoft),
                 ),
                 Text(
                   '${membership.points}',
@@ -287,7 +293,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     const Text(
                       'Posición',
-                      style: TextStyle(fontSize: 13, color: Colors.grey),
+                      style: TextStyle(fontSize: 13, color: AppTheme.kInkSoft),
                     ),
                     Text(
                       '${rank.position}º',
@@ -298,7 +304,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     Text(
                       'de ${rank.total}',
-                      style: const TextStyle(fontSize: 13, color: Colors.grey),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppTheme.kInkSoft,
+                      ),
                     ),
                   ],
                 );
@@ -328,7 +337,10 @@ class _HomeScreenState extends State<HomeScreen> {
           style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 2),
-        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, color: AppTheme.kInkSoft),
+        ),
       ],
     );
   }
@@ -364,6 +376,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Una fila del podio: medalla según el puesto, nombre, puntos.
   Widget _podiumRow(int index, Membership member, bool isMe) {
+    // Medallas oro/plata/bronce: colores semánticos universales, NO de marca.
+    // Se quedan hardcodeados a propósito (una medalla de oro es dorada).
     final medalColors = [
       const Color(0xFFFFD700), // oro
       const Color(0xFFC0C0C0), // plata
@@ -375,7 +389,8 @@ class _HomeScreenState extends State<HomeScreen> {
       margin: const EdgeInsets.symmetric(vertical: 4),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: isMe ? Colors.blue.withValues(alpha: 0.08) : null,
+        // "Esto eres tú": resaltado en ámbar, la seña de la paleta.
+        color: isMe ? AppTheme.kAmber.withValues(alpha: 0.15) : null,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
@@ -427,13 +442,17 @@ class _HomeScreenState extends State<HomeScreen> {
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const Spacer(),
-            _statusChip(match.status),
+            StatusChip(status: match.status),
           ],
         ),
         const SizedBox(height: 16),
         Row(
           children: [
-            const Icon(Icons.calendar_today, size: 18, color: Colors.grey),
+            const Icon(
+              Icons.calendar_today,
+              size: 18,
+              color: AppTheme.kInkSoft,
+            ),
             const SizedBox(width: 8),
             Text(
               _formatDate(match.scheduledAt),
@@ -446,7 +465,11 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 10),
           Row(
             children: [
-              const Icon(Icons.place_outlined, size: 18, color: Colors.grey),
+              const Icon(
+                Icons.place_outlined,
+                size: 18,
+                color: AppTheme.kInkSoft,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -461,7 +484,7 @@ class _HomeScreenState extends State<HomeScreen> {
         const SizedBox(height: 10),
         Row(
           children: [
-            const Icon(Icons.group, size: 18, color: Colors.grey),
+            const Icon(Icons.group, size: 18, color: AppTheme.kInkSoft),
             const SizedBox(width: 8),
             Text(
               freeSlots > 0
@@ -473,15 +496,15 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 8),
         if (amIn)
-          const Row(
+          Row(
             children: [
-              Icon(Icons.check_circle, size: 18, color: Colors.green),
-              SizedBox(width: 8),
+              Icon(Icons.check_circle, size: 18, color: AppTheme.kGreen),
+              const SizedBox(width: 8),
               Text(
                 'Estás apuntado',
                 style: TextStyle(
                   fontSize: 15,
-                  color: Colors.green,
+                  color: AppTheme.kGreen,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -507,51 +530,16 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.event_busy, size: 48, color: Colors.grey),
+            const Icon(Icons.event_busy, size: 48, color: AppTheme.kInkSoft),
             const SizedBox(height: 12),
             Text(
               isCaptain
                   ? 'No hay partidos programados.\nCrea uno desde la pestaña Partidos.'
                   : 'No hay partidos programados.\nTu capitán creará el próximo.',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.grey, fontSize: 15),
+              style: const TextStyle(color: AppTheme.kInkSoft, fontSize: 15),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _statusChip(String status) {
-    late final String label;
-    late final Color color;
-    switch (status) {
-      case 'inProgress':
-        label = 'En juego';
-        color = Colors.orange;
-        break;
-      case 'played':
-        label = 'Jugado';
-        color = Colors.grey;
-        break;
-      case 'scheduled':
-      default:
-        label = 'Programado';
-        color = Colors.green;
-        break;
-    }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
         ),
       ),
     );

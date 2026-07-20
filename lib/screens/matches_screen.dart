@@ -6,6 +6,8 @@ import '../models/membership.dart';
 import 'create_match_sheet.dart';
 import 'match_field_screen.dart';
 import 'match_score_screen.dart';
+import '../widgets/status_chip.dart';
+import '../widgets/app_bar_title.dart';
 
 class MatchesScreen extends StatefulWidget {
   const MatchesScreen({super.key});
@@ -148,7 +150,7 @@ class _MatchesScreenState extends State<MatchesScreen> {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Partidos'),
+          title: const AppBarTitle('Partidos'),
           bottom: const TabBar(
             tabs: [
               Tab(text: 'Próximos'),
@@ -331,7 +333,7 @@ class _MatchesScreenState extends State<MatchesScreen> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _statusChip(match.status),
+        StatusChip(status: match.status),
         // Menú pegado al borde derecho. Si no hay menú (jugador raso, o played),
         // reservamos el mismo ancho con un hueco para que las chips queden
         // alineadas entre todas las tarjetas.
@@ -370,44 +372,6 @@ class _MatchesScreenState extends State<MatchesScreen> {
         else
           const SizedBox(width: 48),
       ],
-    );
-  }
-
-  // Chip de estado, compacta. Colores por estado, sin caducidad de significado.
-  Widget _statusChip(String status) {
-    late final String label;
-    late final Color color;
-
-    switch (status) {
-      case 'inProgress':
-        label = 'En juego';
-        color = Colors.orange;
-        break;
-      case 'played':
-        label = 'Jugado';
-        color = Colors.grey;
-        break;
-      case 'scheduled':
-      default:
-        label = 'Programado';
-        color = Colors.green;
-        break;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
     );
   }
 
