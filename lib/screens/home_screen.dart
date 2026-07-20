@@ -125,28 +125,82 @@ class _HomeScreenState extends State<HomeScreen> {
                   'Hola, ${membership.displayName} 👋',
                   style: const TextStyle(fontSize: 16, color: Colors.grey),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
 
                 // --- Bloque "tú": stats personales ---
-                _buildStatsBlock(membership, group.groupId),
-                const SizedBox(height: 24),
+                _buildSectionCard(
+                  title: 'Tus estadísticas',
+                  child: _buildStatsContent(membership, group.groupId),
+                ),
+                const SizedBox(height: 20),
 
                 // --- Bloque próximo partido ---
-                const Text(
-                  'Próximo partido',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                _buildSectionCard(
+                  title: 'Próximo partido',
+                  child: _buildNextMatchSection(
+                    group.groupId,
+                    membership,
+                    isCaptain,
+                  ),
                 ),
-                const SizedBox(height: 12),
-                _buildNextMatchSection(group.groupId, membership, isCaptain),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
 
                 // --- Bloque "el grupo": top 3 ---
-                _buildTopThreeBlock(group.groupId, membership.userId),
+                _buildSectionCard(
+                  title: 'Clasificación',
+                  child: _buildTopThreeContent(
+                    group.groupId,
+                    membership.userId,
+                  ),
+                ),
               ],
             ),
           ),
         );
       },
+    );
+  }
+
+  // Molde común de los bloques del Home: una Card con sombra y el título
+  // "montado" sobre su borde superior izquierdo (etiqueta flotante estilo
+  // fieldset). Unifica los tres bloques: comparten forma, elevación y titulado.
+  Widget _buildSectionCard({required String title, required Widget child}) {
+    // Fondo del título: colorScheme.surface, que es el color que Material 3
+    // pinta DETRÁS del Scaffold. Ojo: NO scaffoldBackgroundColor, que en M3
+    // no coincide con el fondo real y deja un rectángulo fantasma. Al tomar
+    // el color de la misma fuente que el fondo, el parche es invisible y se
+    // adapta solo al tema (modo oscuro incluido).
+    final surface = Theme.of(context).colorScheme.surface;
+
+    return Stack(
+      clipBehavior: Clip.none, // deja que el título asome fuera de la Card
+      children: [
+        Card(
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          margin: EdgeInsets.zero,
+          child: Padding(
+            // top algo mayor: el contenido no debe chocar con el título.
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+            child: child,
+          ),
+        ),
+        // El título, a caballo del borde superior izquierdo.
+        Positioned(
+          top: -10,
+          left: 16,
+          child: Container(
+            color: surface,
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Text(
+              title,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -161,7 +215,7 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context, matchSnap) {
         if (matchSnap.connectionState == ConnectionState.waiting) {
           return const Padding(
-            padding: EdgeInsets.only(top: 24),
+            padding: EdgeInsets.symmetric(vertical: 24),
             child: Center(child: CircularProgressIndicator()),
           );
         }
@@ -176,102 +230,93 @@ class _HomeScreenState extends State<HomeScreen> {
           return _buildEmptyState(isCaptain);
         }
 
-        return _buildNextMatchCard(scheduled.first, membership);
+        return _buildNextMatchContent(scheduled.first, membership);
       },
     );
   }
 
-  // Bloque "tú": puntos, posición en la clasificación y resumen personal.
-  Widget _buildStatsBlock(Membership membership, String groupId) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
+  // Contenido del bloque "tú": puntos, posición y resumen personal.
+  // (El envoltorio con título lo pone _buildSectionCard.)
+  Widget _buildStatsContent(Membership membership, String groupId) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                const Text(
+                  'Tus puntos',
+                  style: TextStyle(fontSize: 13, color: Colors.grey),
+                ),
+                Text(
+                  '${membership.points}',
+                  style: const TextStyle(
+                    fontSize: 40,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const Spacer(),
+            FutureBuilder<({int position, int total})>(
+              future: _firestoreService.getUserRanking(
+                membership.userId,
+                groupId,
+              ),
+              builder: (context, rankSnap) {
+                if (!rankSnap.hasData) {
+                  return const SizedBox(
+                    width: 60,
+                    height: 40,
+                    child: Center(
+                      child: SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  );
+                }
+                final rank = rankSnap.data!;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     const Text(
-                      'Tus puntos',
+                      'Posición',
                       style: TextStyle(fontSize: 13, color: Colors.grey),
                     ),
                     Text(
-                      '${membership.points}',
+                      '${rank.position}º',
                       style: const TextStyle(
-                        fontSize: 40,
+                        fontSize: 28,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
+                    Text(
+                      'de ${rank.total}',
+                      style: const TextStyle(fontSize: 13, color: Colors.grey),
+                    ),
                   ],
-                ),
-                const Spacer(),
-                FutureBuilder<({int position, int total})>(
-                  future: _firestoreService.getUserRanking(
-                    membership.userId,
-                    groupId,
-                  ),
-                  builder: (context, rankSnap) {
-                    if (!rankSnap.hasData) {
-                      return const SizedBox(
-                        width: 60,
-                        height: 40,
-                        child: Center(
-                          child: SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        ),
-                      );
-                    }
-                    final rank = rankSnap.data!;
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        const Text(
-                          'Posición',
-                          style: TextStyle(fontSize: 13, color: Colors.grey),
-                        ),
-                        Text(
-                          '${rank.position}º',
-                          style: const TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          'de ${rank.total}',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ],
-            ),
-            const Divider(height: 28),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _statItem('Jugados', '${membership.matchesPlayed}'),
-                _statItem('Ganados', '${membership.wins}'),
-                _statItem('Perdidos', '${membership.losses}'),
-                _statItem('Goles', '${membership.goals}'),
-              ],
+                );
+              },
             ),
           ],
         ),
-      ),
+        const Divider(height: 28),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _statItem('Jugados', '${membership.matchesPlayed}'),
+            _statItem('Ganados', '${membership.wins}'),
+            _statItem('Perdidos', '${membership.losses}'),
+            _statItem('Goles', '${membership.goals}'),
+          ],
+        ),
+      ],
     );
   }
 
@@ -288,50 +333,32 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Bloque "el grupo": top 3 de la clasificación, tipo podio.
-  Widget _buildTopThreeBlock(String groupId, String myUserId) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
+  // Contenido del bloque "el grupo": top 3 de la clasificación, tipo podio.
+  Widget _buildTopThreeContent(String groupId, String myUserId) {
+    return FutureBuilder<List<Membership>>(
+      future: _firestoreService.getGroupRanking(groupId),
+      builder: (context, snap) {
+        if (!snap.hasData) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final ranking = snap.data!;
+        if (ranking.isEmpty) {
+          return const Text('Aún no hay jugadores.');
+        }
+
+        final top = ranking.take(3).toList();
+
+        return Column(
           children: [
-            const Text(
-              'Clasificación',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            FutureBuilder<List<Membership>>(
-              future: _firestoreService.getGroupRanking(groupId),
-              builder: (context, snap) {
-                if (!snap.hasData) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    child: Center(child: CircularProgressIndicator()),
-                  );
-                }
-
-                final ranking = snap.data!;
-                if (ranking.isEmpty) {
-                  return const Text('Aún no hay jugadores.');
-                }
-
-                final top = ranking.take(3).toList();
-
-                return Column(
-                  children: [
-                    for (int i = 0; i < top.length; i++)
-                      _podiumRow(i, top[i], top[i].userId == myUserId),
-                  ],
-                );
-              },
-            ),
+            for (int i = 0; i < top.length; i++)
+              _podiumRow(i, top[i], top[i].userId == myUserId),
           ],
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -379,111 +406,97 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Tarjeta del próximo partido: fecha, tipo, huecos, si estoy apuntado.
-  Widget _buildNextMatchCard(Match match, Membership membership) {
+  // Contenido de la tarjeta del próximo partido: fecha, tipo, huecos, apuntado.
+  Widget _buildNextMatchContent(Match match, Membership membership) {
     final amIn = match.slots.any((s) => s.playerId == membership.userId);
 
     final totalSlots = match.slots.length;
     final occupied = match.slots.where((s) => s.playerId != null).length;
     final freeSlots = totalSlots - occupied;
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
           children: [
-            Row(
-              children: [
-                const Icon(Icons.sports_soccer, size: 28),
-                const SizedBox(width: 10),
-                Text(
-                  match.type,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const Spacer(),
-                _statusChip(match.status),
-              ],
+            const Icon(Icons.sports_soccer, size: 28),
+            const SizedBox(width: 10),
+            Text(
+              match.type,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                const Icon(Icons.calendar_today, size: 18, color: Colors.grey),
-                const SizedBox(width: 8),
-                Text(
-                  _formatDate(match.scheduledAt),
-                  style: const TextStyle(fontSize: 15),
-                ),
-              ],
-            ),
-            // Lugar del partido, solo si tiene uno.
-            if (match.location.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  const Icon(
-                    Icons.place_outlined,
-                    size: 18,
-                    color: Colors.grey,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      match.location,
-                      style: const TextStyle(fontSize: 15),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                const Icon(Icons.group, size: 18, color: Colors.grey),
-                const SizedBox(width: 8),
-                Text(
-                  freeSlots > 0
-                      ? '$freeSlots ${freeSlots == 1 ? "hueco libre" : "huecos libres"} de $totalSlots'
-                      : 'Completo ($totalSlots jugadores)',
-                  style: const TextStyle(fontSize: 15),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            if (amIn)
-              const Row(
-                children: [
-                  Icon(Icons.check_circle, size: 18, color: Colors.green),
-                  SizedBox(width: 8),
-                  Text(
-                    'Estás apuntado',
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: Colors.green,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                icon: Icon(amIn ? Icons.visibility : Icons.how_to_reg),
-                label: Text(amIn ? 'Ver partido' : 'Apuntarme'),
-                onPressed: () => _openMatch(match, membership),
-              ),
+            const Spacer(),
+            _statusChip(match.status),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            const Icon(Icons.calendar_today, size: 18, color: Colors.grey),
+            const SizedBox(width: 8),
+            Text(
+              _formatDate(match.scheduledAt),
+              style: const TextStyle(fontSize: 15),
             ),
           ],
         ),
-      ),
+        // Lugar del partido, solo si tiene uno.
+        if (match.location.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              const Icon(Icons.place_outlined, size: 18, color: Colors.grey),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  match.location,
+                  style: const TextStyle(fontSize: 15),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ],
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            const Icon(Icons.group, size: 18, color: Colors.grey),
+            const SizedBox(width: 8),
+            Text(
+              freeSlots > 0
+                  ? '$freeSlots ${freeSlots == 1 ? "hueco libre" : "huecos libres"} de $totalSlots'
+                  : 'Completo ($totalSlots jugadores)',
+              style: const TextStyle(fontSize: 15),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (amIn)
+          const Row(
+            children: [
+              Icon(Icons.check_circle, size: 18, color: Colors.green),
+              SizedBox(width: 8),
+              Text(
+                'Estás apuntado',
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Colors.green,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            icon: Icon(amIn ? Icons.visibility : Icons.how_to_reg),
+            label: Text(amIn ? 'Ver partido' : 'Apuntarme'),
+            onPressed: () => _openMatch(match, membership),
+          ),
+        ),
+      ],
     );
   }
 
