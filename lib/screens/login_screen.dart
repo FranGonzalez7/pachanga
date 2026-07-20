@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../services/auth_service.dart';
+import '../theme/app_theme.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -90,57 +92,106 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Sin AppBar: el contenido protagonista es el título + logo. SafeArea
+    // evita que trepe hasta la barra de estado del móvil (hora, batería).
     return Scaffold(
-      appBar: AppBar(title: const Text('Pachanga')),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (!_isLogin) ...[
-              TextField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Nombre',
-                  border: OutlineInputBorder(),
+      body: SafeArea(
+        // LayoutBuilder nos da la altura disponible. Con ConstrainedBox +
+        // IntrinsicHeight forzamos a la Column a ocupar TODA esa altura, y
+        // centramos el contenido con Spacers arriba y abajo. Así el centro
+        // es estable (la altura total no cambia) y el formulario no salta
+        // al desplegar el campo Nombre.
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Spacer(),
+
+                      // --- Cabecera: título arriba, logo debajo ---
+                      Text(
+                        'Pachanga',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.poppins(
+                          fontSize: 40,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.kGreen,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Icon(
+                        Icons.sports_soccer,
+                        size: 100,
+                        color: AppTheme.kGreen,
+                      ),
+                      const SizedBox(height: 40),
+
+                      // --- Formulario ---
+                      // El campo Nombre aparece/desaparece con una transición
+                      // suave (AnimatedSize): el único movimiento del layout es
+                      // elegante, no un salto brusco.
+                      AnimatedSize(
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeInOut,
+                        alignment: Alignment.topCenter,
+                        child: _isLogin
+                            ? const SizedBox(width: double.infinity)
+                            : Padding(
+                                padding: const EdgeInsets.only(bottom: 16),
+                                child: TextField(
+                                  controller: _nameController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Nombre',
+                                  ),
+                                ),
+                              ),
+                      ),
+                      TextField(
+                        controller: _emailController,
+                        decoration: const InputDecoration(
+                          labelText: 'Correo electrónico',
+                        ),
+                        keyboardType: TextInputType.emailAddress,
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _passwordController,
+                        decoration: const InputDecoration(
+                          labelText: 'Contraseña',
+                        ),
+                        obscureText: true,
+                      ),
+                      const SizedBox(height: 24),
+                      _isLoading
+                          ? const Center(child: CircularProgressIndicator())
+                          : ElevatedButton(
+                              onPressed: _submit,
+                              child: Text(
+                                _isLogin ? 'Iniciar sesión' : 'Registrarse',
+                              ),
+                            ),
+                      const SizedBox(height: 12),
+                      TextButton(
+                        onPressed: _isLoading ? null : _toggleMode,
+                        child: Text(
+                          _isLogin
+                              ? '¿No tienes cuenta? Regístrate'
+                              : '¿Ya tienes cuenta? Inicia sesión',
+                        ),
+                      ),
+
+                      const Spacer(),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 16),
-            ],
-            TextField(
-              controller: _emailController,
-              decoration: const InputDecoration(
-                labelText: 'Correo electrónico',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.emailAddress,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _passwordController,
-              decoration: const InputDecoration(
-                labelText: 'Contraseña',
-                border: OutlineInputBorder(),
-              ),
-              obscureText: true,
-            ),
-            const SizedBox(height: 24),
-            _isLoading
-                ? const CircularProgressIndicator()
-                : ElevatedButton(
-                    onPressed: _submit,
-                    child: Text(_isLogin ? 'Iniciar sesión' : 'Registrarse'),
-                  ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: _isLoading ? null : _toggleMode,
-              child: Text(
-                _isLogin
-                    ? '¿No tienes cuenta? Regístrate'
-                    : '¿Ya tienes cuenta? Inicia sesión',
-              ),
-            ),
-          ],
+            );
+          },
         ),
       ),
     );

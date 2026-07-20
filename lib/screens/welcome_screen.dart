@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
+import '../theme/app_theme.dart';
 
 class WelcomeScreen extends StatefulWidget {
   final VoidCallback onGroupJoined;
@@ -97,59 +98,109 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    'Crear un grupo',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _groupNameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Nombre del grupo',
-                      border: OutlineInputBorder(),
+          : SafeArea(
+              // Mismo patrón que el login: forzamos la Column a ocupar toda
+              // la altura disponible y centramos con Spacers. Centro estable
+              // y, a la vez, scroll cuando el teclado reduce el espacio.
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 32,
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  ElevatedButton(
-                    onPressed: _createGroup,
-                    child: const Text('Crear grupo'),
-                  ),
-                  const SizedBox(height: 32),
-                  const Row(
-                    children: [
-                      Expanded(child: Divider()),
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 8),
-                        child: Text('o'),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight:
+                            constraints.maxHeight -
+                            64, // menos el padding vertical
                       ),
-                      Expanded(child: Divider()),
-                    ],
-                  ),
-                  const SizedBox(height: 32),
-                  const Text(
-                    'Unirse a un grupo',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _joinCodeController,
-                    decoration: const InputDecoration(
-                      labelText: 'Código del grupo',
-                      border: OutlineInputBorder(),
+                      child: IntrinsicHeight(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const Spacer(),
+
+                            // --- Crear un grupo ---
+                            Text(
+                              'Crear un grupo',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                            const SizedBox(height: 16),
+                            TextField(
+                              controller: _groupNameController,
+                              decoration: const InputDecoration(
+                                labelText: 'Nombre del grupo',
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: _createGroup,
+                              child: const Text('Crear grupo'),
+                            ),
+
+                            // --- Separador reforzado, con mucho aire ---
+                            const SizedBox(height: 48),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Divider(
+                                    thickness: 1.5,
+                                    color: AppTheme.kInk.withValues(
+                                      alpha: 0.15,
+                                    ),
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                  ),
+                                  child: Icon(
+                                    Icons.sports_soccer,
+                                    size: 22,
+                                    color: AppTheme.kGreen,
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Divider(
+                                    thickness: 1.5,
+                                    color: AppTheme.kInk.withValues(
+                                      alpha: 0.15,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 48),
+
+                            // --- Unirse a un grupo ---
+                            Text(
+                              'Unirse a un grupo',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                            const SizedBox(height: 16),
+                            TextField(
+                              controller: _joinCodeController,
+                              decoration: const InputDecoration(
+                                labelText: 'Código del grupo',
+                              ),
+                              textCapitalization: TextCapitalization.characters,
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: _joinGroup,
+                              child: const Text('Unirse'),
+                            ),
+
+                            const Spacer(),
+                          ],
+                        ),
+                      ),
                     ),
-                    textCapitalization: TextCapitalization.characters,
-                  ),
-                  const SizedBox(height: 12),
-                  ElevatedButton(
-                    onPressed: _joinGroup,
-                    child: const Text('Unirse'),
-                  ),
-                ],
+                  );
+                },
               ),
             ),
     );

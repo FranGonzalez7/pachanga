@@ -145,6 +145,25 @@ class AppTheme {
         color: kInk.withValues(alpha: 0.10),
         thickness: 1,
       ),
+
+      // Campos de texto: fondo crema claro, bordes redondeados coherentes
+      // con las tarjetas, y borde verde al enfocar. Lo heredan TODOS los
+      // TextField de la app (login, crear partido...) sin repetir estilo.
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: kCreamCard,
+        labelStyle: const TextStyle(color: kInkSoft),
+        // Borde en reposo: una línea tenue de tinta.
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: kInk.withValues(alpha: 0.15)),
+        ),
+        // Borde al enfocar: verde del tema, un poco más grueso.
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: kGreen, width: 2),
+        ),
+      ),
     );
   }
 }
