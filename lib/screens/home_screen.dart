@@ -5,7 +5,6 @@ import '../models/group.dart';
 import '../models/membership.dart';
 import '../models/match.dart';
 import '../theme/app_theme.dart';
-import '../widgets/status_chip.dart';
 import '../widgets/app_bar_title.dart';
 import 'settings_screen.dart';
 import 'match_field_screen.dart';
@@ -320,17 +319,13 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
-        Divider(height: 28, color: AppTheme.kGreen.withValues(alpha: 0.65)),
+        Divider(height: 28, color: AppTheme.kGreen.withValues(alpha: 0.25)),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
             _statItem(Icons.stadium, 'Jugados', '${membership.matchesPlayed}'),
-            _statItem(
-              Icons.check_circle_outlined,
-              'Ganados',
-              '${membership.wins}',
-            ),
-            _statItem(Icons.highlight_off, 'Perdidos', '${membership.losses}'),
+            _statItem(Icons.military_tech, 'Ganados', '${membership.wins}'),
+            _statItem(Icons.close, 'Perdidos', '${membership.losses}'),
             _statItem(Icons.sports_soccer, 'Goles', '${membership.goals}'),
           ],
         ),
@@ -486,106 +481,272 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Contenido de la tarjeta del próximo partido: fecha, tipo, huecos, apuntado.
+  // Contenido de la tarjeta del próximo partido: caja de fecha a la izquierda,
+  // datos del partido a la derecha, y abajo los apuntados con el botón.
   Widget _buildNextMatchContent(Match match, Membership membership) {
     final amIn = match.slots.any((s) => s.playerId == membership.userId);
-
-    final totalSlots = match.slots.length;
-    final occupied = match.slots.where((s) => s.playerId != null).length;
-    final freeSlots = totalSlots - occupied;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
+        // --- Fila superior: caja de fecha + datos ---
         Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const Icon(Icons.sports_soccer, size: 28),
-            const SizedBox(width: 10),
-            Text(
-              match.type,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            _buildDateBox(match.scheduledAt),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 1ª línea: tipo de partido con el balón.
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.sports_soccer,
+                        size: 22,
+                        color: AppTheme.kGreen,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        match.type,
+                        style: const TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  // 2ª línea: lugar (solo si lo tiene).
+                  if (match.location.isNotEmpty) ...[
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.place_outlined,
+                          size: 18,
+                          color: AppTheme.kInkSoft,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            match.location,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              color: AppTheme.kInkSoft,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                  ],
+                  // 3ª línea: hora y, si procede, "Estás apuntado".
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.schedule,
+                        size: 18,
+                        color: AppTheme.kInkSoft,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _formatTime(match.scheduledAt),
+                        style: const TextStyle(
+                          fontSize: 15,
+                          color: AppTheme.kInkSoft,
+                        ),
+                      ),
+                      if (amIn) ...[
+                        const Text(
+                          '  •  ',
+                          style: TextStyle(color: AppTheme.kInkSoft),
+                        ),
+                        const Icon(
+                          Icons.check_circle,
+                          size: 15,
+                          color: AppTheme.kGreen,
+                        ),
+                        const SizedBox(width: 4),
+                        const Flexible(
+                          child: Text(
+                            'Estás apuntado',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: AppTheme.kGreen,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
             ),
-            const Spacer(),
-            StatusChip(status: match.status),
           ],
         ),
-        const SizedBox(height: 16),
+
+        Divider(height: 28, color: AppTheme.kGreen.withValues(alpha: 0.25)),
+
+        // --- Fila inferior: apuntados + botón ---
         Row(
           children: [
-            const Icon(
-              Icons.calendar_today,
-              size: 18,
-              color: AppTheme.kInkSoft,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              _formatDate(match.scheduledAt),
-              style: const TextStyle(fontSize: 15),
+            Expanded(child: _buildSignedUpPlayers(match)),
+            const SizedBox(width: 12),
+            ElevatedButton(
+              onPressed: () => _openMatch(match, membership),
+              child: Text(amIn ? 'Ver partido' : 'Apuntarme'),
             ),
           ],
-        ),
-        // Lugar del partido, solo si tiene uno.
-        if (match.location.isNotEmpty) ...[
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              const Icon(
-                Icons.place_outlined,
-                size: 18,
-                color: AppTheme.kInkSoft,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  match.location,
-                  style: const TextStyle(fontSize: 15),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ],
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            const Icon(Icons.group, size: 18, color: AppTheme.kInkSoft),
-            const SizedBox(width: 8),
-            Text(
-              freeSlots > 0
-                  ? '$freeSlots ${freeSlots == 1 ? "hueco libre" : "huecos libres"} de $totalSlots'
-                  : 'Completo ($totalSlots jugadores)',
-              style: const TextStyle(fontSize: 15),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        if (amIn)
-          Row(
-            children: [
-              Icon(Icons.check_circle, size: 18, color: AppTheme.kGreen),
-              const SizedBox(width: 8),
-              Text(
-                'Estás apuntado',
-                style: TextStyle(
-                  fontSize: 15,
-                  color: AppTheme.kGreen,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        const SizedBox(height: 16),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            icon: Icon(amIn ? Icons.visibility : Icons.how_to_reg),
-            label: Text(amIn ? 'Ver partido' : 'Apuntarme'),
-            onPressed: () => _openMatch(match, membership),
-          ),
         ),
       ],
     );
+  }
+
+  // Caja lateral cuadrada con el día y el mes del partido.
+  Widget _buildDateBox(DateTime date) {
+    return Container(
+      width: 62,
+      height: 62,
+      decoration: BoxDecoration(
+        color: AppTheme.kCream,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.kGreen.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            _monthAbbr(date.month),
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.kGreen,
+              letterSpacing: 0.5,
+            ),
+          ),
+          Text(
+            '${date.day}',
+            style: const TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.bold,
+              height: 1.1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Hilera de apuntados: avatares solapados con la inicial, más el recuento.
+  // Sale de los slots del partido, sin lecturas extra a Firestore.
+  Widget _buildSignedUpPlayers(Match match) {
+    final names = match.slots
+        .where((s) => s.playerName != null)
+        .map((s) => s.playerName!)
+        .toList();
+
+    final total = match.slots.length;
+
+    if (names.isEmpty) {
+      return const Text(
+        'Nadie apuntado aún',
+        style: TextStyle(fontSize: 13, color: AppTheme.kInkSoft),
+      );
+    }
+
+    const maxVisible = 4; // a partir de aquí, se resume con "+N"
+    const size = 32.0;
+    const step = 23.0; // avance entre avatares (menor que size = se solapan)
+
+    final visible = names.take(maxVisible).toList();
+    final extra = names.length - visible.length;
+    final bubbles = visible.length + (extra > 0 ? 1 : 0);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          height: size,
+          width: size + (bubbles - 1) * step,
+          child: Stack(
+            children: [
+              for (int i = 0; i < visible.length; i++)
+                Positioned(
+                  left: i * step,
+                  child: _miniAvatar(text: _initial(visible[i])),
+                ),
+              if (extra > 0)
+                Positioned(
+                  left: visible.length * step,
+                  child: _miniAvatar(text: '+$extra', muted: true),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '${names.length} de $total apuntados',
+          style: const TextStyle(fontSize: 12, color: AppTheme.kInkSoft),
+        ),
+      ],
+    );
+  }
+
+  // Avatar pequeño de la hilera. Placeholder con inicial; el día de las
+  // fotos (plan Blaze) solo cambia el contenido del círculo.
+  Widget _miniAvatar({required String text, bool muted = false}) {
+    return Container(
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: muted ? AppTheme.kInkSoft : AppTheme.kGreen,
+        // Borde del color de la tarjeta: recorta el avatar de atrás y hace
+        // que el solape se lea como "uno delante de otro".
+        border: Border.all(color: AppTheme.kCreamCard, width: 2),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          color: AppTheme.kCreamCard,
+        ),
+      ),
+    );
+  }
+
+  String _initial(String name) => name.isNotEmpty ? name[0].toUpperCase() : '?';
+
+  String _monthAbbr(int month) {
+    const months = [
+      'ENE',
+      'FEB',
+      'MAR',
+      'ABR',
+      'MAY',
+      'JUN',
+      'JUL',
+      'AGO',
+      'SEP',
+      'OCT',
+      'NOV',
+      'DIC',
+    ];
+    return months[month - 1];
+  }
+
+  String _formatTime(DateTime d) {
+    final two = (int n) => n.toString().padLeft(2, '0');
+    return '${two(d.hour)}:${two(d.minute)}h';
   }
 
   Widget _buildEmptyState(bool isCaptain) {
@@ -608,10 +769,5 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
-  }
-
-  String _formatDate(DateTime d) {
-    final two = (int n) => n.toString().padLeft(2, '0');
-    return '${two(d.day)}/${two(d.month)}/${d.year}  ${two(d.hour)}:${two(d.minute)}';
   }
 }
