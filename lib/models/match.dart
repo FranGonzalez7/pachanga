@@ -70,6 +70,20 @@ class Match {
     return total;
   }
 
+  // ¿El partido quedó en el pasado? Criterio por DÍAS: uno de hoy sigue
+  // contando como próximo hasta que acabe el día, aunque su hora ya pasara
+  // (así no desaparece del Home mientras la gente va de camino al campo).
+  bool get isPast {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final matchDay = DateTime(
+      scheduledAt.year,
+      scheduledAt.month,
+      scheduledAt.day,
+    );
+    return matchDay.isBefore(today);
+  }
+
   // Marcador final = goles de jugadores + goles "a mano".
   int get teamAScore => teamAGoalsFromPlayers + teamAExtraGoals;
   int get teamBScore => teamBGoalsFromPlayers + teamBExtraGoals;

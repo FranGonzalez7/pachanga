@@ -97,7 +97,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
         return Scaffold(
           appBar: AppBar(
-            title: AppBarTitle(group.name),
+            title: const AppBarTitle('Pachanga'),
             actions: [
               if (isCaptain)
                 IconButton(
@@ -124,20 +124,22 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Saludo en dos líneas: nombre (cálido) y grupo (contexto).
                 Text(
-                  'Hola, ${membership.displayName} 👋',
+                  '¡Hola, ${membership.displayName}!',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                Text(
+                  'Bienvenido a ${group.name}',
                   style: const TextStyle(
-                    fontSize: 16,
+                    fontSize: 14,
                     color: AppTheme.kInkSoft,
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 28),
 
-                // --- Bloque "tú": stats personales ---
-                _buildSectionCard(
-                  title: 'Tus estadísticas',
-                  child: _buildStatsContent(membership, group.groupId),
-                ),
+                // --- Bloque "tú": stats personales (con avatar superpuesto) ---
+                _buildStatsBlock(membership, group.groupId),
                 const SizedBox(height: 20),
 
                 // --- Bloque próximo partido ---
@@ -227,9 +229,11 @@ class _HomeScreenState extends State<HomeScreen> {
         }
 
         final allMatches = matchSnap.data ?? [];
-        // Próximo = primer partido PROGRAMADO (los que admiten apuntarse).
+        // Próximo = primer partido PROGRAMADO cuyo día no haya pasado.
+        // Los caducados siguen en la lista de Partidos (los limpia el capitán),
+        // pero no deben ocupar el hueco de "próximo partido".
         final scheduled = allMatches
-            .where((m) => m.status == 'scheduled')
+            .where((m) => m.status == 'scheduled' && !m.isPast)
             .toList();
 
         if (scheduled.isEmpty) {
@@ -241,97 +245,158 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Contenido del bloque "tú": puntos, posición y resumen personal.
-  // (El envoltorio con título lo pone _buildSectionCard.)
+  // Contenido del bloque "tú": puntos grandes, posición en línea y la fila
+  // de stats menores. El avatar NO va aquí: lo superpone _buildStatsBlock
+  // por encima de la tarjeta. Dejamos un padding derecho para que el número
+  // no choque con el avatar que asoma por esa esquina.
   Widget _buildStatsContent(Membership membership, String groupId) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Tus puntos',
-                  style: TextStyle(fontSize: 13, color: AppTheme.kInkSoft),
-                ),
-                Text(
-                  '${membership.points}',
-                  style: const TextStyle(
-                    fontSize: 40,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            const Spacer(),
-            FutureBuilder<({int position, int total})>(
-              future: _firestoreService.getUserRanking(
-                membership.userId,
-                groupId,
+        Padding(
+          // Reservamos la esquina derecha para el avatar superpuesto.
+          padding: const EdgeInsets.only(right: 100),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Mis puntos',
+                style: TextStyle(fontSize: 13, color: AppTheme.kInkSoft),
               ),
-              builder: (context, rankSnap) {
-                if (!rankSnap.hasData) {
-                  return const SizedBox(
-                    width: 60,
-                    height: 40,
-                    child: Center(
-                      child: SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+              Text(
+                '${membership.points}',
+                style: const TextStyle(
+                  fontSize: 46,
+                  fontWeight: FontWeight.bold,
+                  height: 1,
+                ),
+              ),
+              const SizedBox(height: 8),
+              // Posición en una línea discreta, para que los puntos brillen.
+              FutureBuilder<({int position, int total})>(
+                future: _firestoreService.getUserRanking(
+                  membership.userId,
+                  groupId,
+                ),
+                builder: (context, rankSnap) {
+                  if (!rankSnap.hasData) {
+                    return const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    );
+                  }
+                  final rank = rankSnap.data!;
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      const Text(
+                        'Posición ',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: AppTheme.kInkSoft,
+                        ),
                       ),
-                    ),
+                      Text(
+                        '${rank.position}º',
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        ' de ${rank.total}',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: AppTheme.kInkSoft,
+                        ),
+                      ),
+                    ],
                   );
-                }
-                final rank = rankSnap.data!;
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    const Text(
-                      'Posición',
-                      style: TextStyle(fontSize: 13, color: AppTheme.kInkSoft),
-                    ),
-                    Text(
-                      '${rank.position}º',
-                      style: const TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      'de ${rank.total}',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: AppTheme.kInkSoft,
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ],
+                },
+              ),
+            ],
+          ),
         ),
-        const Divider(height: 28),
+        Divider(height: 28, color: AppTheme.kGreen.withValues(alpha: 0.65)),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _statItem('Jugados', '${membership.matchesPlayed}'),
-            _statItem('Ganados', '${membership.wins}'),
-            _statItem('Perdidos', '${membership.losses}'),
-            _statItem('Goles', '${membership.goals}'),
+            _statItem(Icons.stadium, 'Jugados', '${membership.matchesPlayed}'),
+            _statItem(
+              Icons.check_circle_outlined,
+              'Ganados',
+              '${membership.wins}',
+            ),
+            _statItem(Icons.highlight_off, 'Perdidos', '${membership.losses}'),
+            _statItem(Icons.sports_soccer, 'Goles', '${membership.goals}'),
           ],
         ),
       ],
     );
   }
 
-  Widget _statItem(String label, String value) {
+  // Envuelve la tarjeta de stats para superponerle el avatar por la esquina
+  // superior derecha. El molde _buildSectionCard ya usa un Stack para su
+  // título; aquí añadimos OTRA capa por encima solo para este bloque, sin
+  // tocar el molde común (que comparten los otros dos bloques).
+  Widget _buildStatsBlock(Membership membership, String groupId) {
+    return Stack(
+      clipBehavior: Clip.none, // deja que el avatar asome fuera de la tarjeta
+      children: [
+        _buildSectionCard(
+          title: 'Mis estadísticas',
+          child: _buildStatsContent(membership, groupId),
+        ),
+        // Avatar superpuesto: asoma un poco por arriba, apoyado en la tarjeta.
+        Positioned(
+          top: -18,
+          right: 16,
+          child: _buildAvatar(membership.displayName),
+        ),
+      ],
+    );
+  }
+
+  // Avatar circular: borde verde, interior crema, inicial en verde.
+  // Placeholder por ahora; el día de las fotos (plan Blaze) solo cambia
+  // el contenido del círculo por la imagen.
+  Widget _buildAvatar(String name) {
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    return Container(
+      width: 112,
+      height: 112,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: AppTheme.kCreamCard,
+        border: Border.all(color: AppTheme.kGreen, width: 4),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.kInk.withValues(alpha: 0.15),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        initial,
+        style: const TextStyle(
+          fontSize: 44,
+          fontWeight: FontWeight.bold,
+          color: AppTheme.kGreen,
+        ),
+      ),
+    );
+  }
+
+  Widget _statItem(IconData icon, String label, String value) {
     return Column(
       children: [
+        Icon(icon, size: 20, color: AppTheme.kInkSoft),
+        const SizedBox(height: 4),
         Text(
           value,
           style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),

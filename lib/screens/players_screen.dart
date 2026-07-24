@@ -167,6 +167,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
           final players = _sortedPlayers(snapshot.data!);
 
           return ListView.builder(
+            padding: const EdgeInsets.only(bottom: 88),
             itemCount: players.length,
             itemBuilder: (context, index) {
               final player = players[index];
