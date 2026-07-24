@@ -522,6 +522,42 @@ class FirestoreService {
     return membership;
   }
 
+  // Cambia el nombre del usuario CON CUENTA en los tres sitios donde vive:
+  // su perfil global (users), su membresía del grupo y el playerName de los
+  // slots de todos sus partidos. Todo en un batch atómico: o se aplica todo,
+  // o nada (nunca queda el nombre viejo colgando en un campo).
+  //
+  // Es el hermano de updateGhostName: la diferencia es el paso 1, porque un
+  // fantasma no tiene documento en 'users'.
+  Future<void> updateUserName({
+    required String userId,
+    required String groupId,
+    required String newName,
+  }) async {
+    final batch = _db.batch();
+
+    // 1. El nombre en el perfil global del usuario.
+    final userRef = _db.collection('users').doc(userId);
+    batch.update(userRef, {'displayName': newName});
+
+    // 2. El nombre en su membresía del grupo.
+    final membershipRef = _db
+        .collection('memberships')
+        .doc('${userId}_$groupId');
+    batch.update(membershipRef, {'displayName': newName});
+
+    // 3. El nombre en los slots de sus partidos (pieza reutilizable, la
+    //    misma que usan los fantasmas).
+    await _addPlayerNameUpdatesToBatch(
+      batch: batch,
+      userId: userId,
+      groupId: groupId,
+      newName: newName,
+    );
+
+    await batch.commit();
+  }
+
   // Actualiza el nombre de un jugador fantasma: en su membresía Y en los
   // slots de todos los partidos donde aparezca, para que no quede el nombre
   // viejo colgando en el campo. Todo en un batch atómico.

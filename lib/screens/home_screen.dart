@@ -7,6 +7,7 @@ import '../models/match.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_bar_title.dart';
 import 'settings_screen.dart';
+import 'profile_screen.dart';
 import 'match_field_screen.dart';
 import 'match_score_screen.dart';
 
@@ -21,13 +22,41 @@ class _HomeScreenState extends State<HomeScreen> {
   final AuthService _authService = AuthService();
   final FirestoreService _firestoreService = FirestoreService();
 
-  late final Future<({Membership membership, Group group})?> _dataFuture;
+  // No es 'final': al volver del perfil (donde se puede cambiar el nombre)
+  // lo reasignamos para que el Home muestre los datos actualizados.
+  late Future<({Membership membership, Group group})?> _dataFuture;
 
   @override
   void initState() {
     super.initState();
     final uid = _authService.currentUser!.uid;
     _dataFuture = _firestoreService.getUserMembershipAndGroup(uid);
+  }
+
+  // Recarga los datos del Home. Lo llaman las pantallas de las que se puede
+  // volver con el nombre cambiado (perfil, y ajustes que lleva al perfil).
+  void _reloadData() {
+    if (!mounted) return;
+    final uid = _authService.currentUser!.uid;
+    setState(() {
+      _dataFuture = _firestoreService.getUserMembershipAndGroup(uid);
+    });
+  }
+
+  // Abre el perfil y, al volver, recarga: el nombre puede haber cambiado.
+  Future<void> _openProfile() async {
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (context) => const ProfileScreen()));
+    _reloadData();
+  }
+
+  // Ajustes también recarga al volver, porque desde ahí se llega al perfil.
+  Future<void> _openSettings() async {
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (context) => SettingsScreen()));
+    _reloadData();
   }
 
   void _showInviteCode(String code) {
@@ -107,11 +136,7 @@ class _HomeScreenState extends State<HomeScreen> {
               IconButton(
                 icon: const Icon(Icons.settings),
                 tooltip: 'Ajustes',
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (context) => SettingsScreen()),
-                  );
-                },
+                onPressed: _openSettings,
               ),
             ],
           ),
@@ -346,10 +371,14 @@ class _HomeScreenState extends State<HomeScreen> {
           child: _buildStatsContent(membership, groupId),
         ),
         // Avatar superpuesto: asoma un poco por arriba, apoyado en la tarjeta.
+        // Tocarlo abre el perfil.
         Positioned(
           top: -18,
           right: 16,
-          child: _buildAvatar(membership.displayName),
+          child: GestureDetector(
+            onTap: _openProfile,
+            child: _buildAvatar(membership.displayName),
+          ),
         ),
       ],
     );
