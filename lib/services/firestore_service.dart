@@ -217,6 +217,7 @@ class FirestoreService {
     required String playerId,
     required String playerName,
     required String position,
+    String? photoUrl, // foto del jugador (puede no tener)
   }) async {
     final matchRef = _db.collection('matches').doc(matchId);
     final doc = await matchRef.get();
@@ -239,6 +240,7 @@ class FirestoreService {
     updatedSlots[slotIndex] = updatedSlots[slotIndex].copyWith(
       playerId: playerId,
       playerName: playerName,
+      photoUrl: photoUrl,
       position: position,
     );
 

@@ -6,6 +6,7 @@ import '../models/membership.dart';
 import '../models/match.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_bar_title.dart';
+import '../widgets/player_avatar.dart';
 import 'settings_screen.dart';
 import 'profile_screen.dart';
 import 'match_field_screen.dart';
@@ -377,25 +378,19 @@ class _HomeScreenState extends State<HomeScreen> {
           right: 16,
           child: GestureDetector(
             onTap: _openProfile,
-            child: _buildAvatar(membership.displayName),
+            child: _buildStatsAvatar(membership),
           ),
         ),
       ],
     );
   }
 
-  // Avatar circular: borde verde, interior crema, inicial en verde.
-  // Placeholder por ahora; el día de las fotos (plan Blaze) solo cambia
-  // el contenido del círculo por la imagen.
-  Widget _buildAvatar(String name) {
-    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+  // Avatar grande del bloque de stats: usa PlayerAvatar (foto o inicial,
+  // borde verde) y le añade la sombra, que solo este avatar lleva.
+  Widget _buildStatsAvatar(Membership membership) {
     return Container(
-      width: 112,
-      height: 112,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: AppTheme.kCreamCard,
-        border: Border.all(color: AppTheme.kGreen, width: 4),
         boxShadow: [
           BoxShadow(
             color: AppTheme.kInk.withValues(alpha: 0.15),
@@ -404,14 +399,12 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      alignment: Alignment.center,
-      child: Text(
-        initial,
-        style: const TextStyle(
-          fontSize: 44,
-          fontWeight: FontWeight.bold,
-          color: AppTheme.kGreen,
-        ),
+      child: PlayerAvatar(
+        photoUrl: membership.photoUrl,
+        name: membership.displayName,
+        size: 112,
+        borderColor: AppTheme.kGreen,
+        borderWidth: 4,
       ),
     );
   }
@@ -675,14 +668,12 @@ class _HomeScreenState extends State<HomeScreen> {
   // Hilera de apuntados: avatares solapados con la inicial, más el recuento.
   // Sale de los slots del partido, sin lecturas extra a Firestore.
   Widget _buildSignedUpPlayers(Match match) {
-    final names = match.slots
-        .where((s) => s.playerName != null)
-        .map((s) => s.playerName!)
-        .toList();
+    // Nos quedamos con los slots ocupados: tienen nombre Y foto.
+    final occupiedSlots = match.slots.where((s) => s.playerId != null).toList();
 
     final total = match.slots.length;
 
-    if (names.isEmpty) {
+    if (occupiedSlots.isEmpty) {
       return const Text(
         'Nadie apuntado aún',
         style: TextStyle(fontSize: 13, color: AppTheme.kInkSoft),
@@ -691,10 +682,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
     const maxVisible = 4; // a partir de aquí, se resume con "+N"
     const size = 32.0;
-    const step = 23.0; // avance entre avatares (menor que size = se solapan)
+    const border = 2.0; // borde del avatar, sobresale por fuera del contenido
+    const outer = size + border * 2; // tamaño real de la burbuja con borde
+    const step = 23.0; // avance entre avatares (menor que outer = se solapan)
 
-    final visible = names.take(maxVisible).toList();
-    final extra = names.length - visible.length;
+    final visible = occupiedSlots.take(maxVisible).toList();
+    final extra = occupiedSlots.length - visible.length;
     final bubbles = visible.length + (extra > 0 ? 1 : 0);
 
     return Column(
@@ -702,58 +695,74 @@ class _HomeScreenState extends State<HomeScreen> {
       mainAxisSize: MainAxisSize.min,
       children: [
         SizedBox(
-          height: size,
-          width: size + (bubbles - 1) * step,
+          height: outer,
+          width: outer + (bubbles - 1) * step,
           child: Stack(
             children: [
               for (int i = 0; i < visible.length; i++)
                 Positioned(
                   left: i * step,
-                  child: _miniAvatar(text: _initial(visible[i])),
+                  child: _miniAvatar(
+                    photoUrl: visible[i].photoUrl,
+                    name: visible[i].playerName ?? '?',
+                  ),
                 ),
               if (extra > 0)
                 Positioned(
                   left: visible.length * step,
-                  child: _miniAvatar(text: '+$extra', muted: true),
+                  child: _miniAvatar(overflowText: '+$extra'),
                 ),
             ],
           ),
         ),
         const SizedBox(height: 4),
         Text(
-          '${names.length} de $total apuntados',
+          '${occupiedSlots.length} de $total apuntados',
           style: const TextStyle(fontSize: 12, color: AppTheme.kInkSoft),
         ),
       ],
     );
   }
 
-  // Avatar pequeño de la hilera. Placeholder con inicial; el día de las
-  // fotos (plan Blaze) solo cambia el contenido del círculo.
-  Widget _miniAvatar({required String text, bool muted = false}) {
-    return Container(
-      width: 32,
-      height: 32,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: muted ? AppTheme.kInkSoft : AppTheme.kGreen,
-        // Borde del color de la tarjeta: recorta el avatar de atrás y hace
-        // que el solape se lea como "uno delante de otro".
-        border: Border.all(color: AppTheme.kCreamCard, width: 2),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        text,
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: AppTheme.kCreamCard,
+  // Avatar pequeño de la hilera. Muestra foto o inicial (vía PlayerAvatar),
+  // o el "+N" de resumen. El borde es del color de la tarjeta: recorta el
+  // avatar de atrás y hace que el solape se lea como "uno delante de otro".
+  Widget _miniAvatar({String? photoUrl, String? name, String? overflowText}) {
+    // Caso "+N": una burbuja apagada con el texto de resumen. Su tamaño
+    // (36) iguala al de los avatares con borde: contenido 32 + borde 2x2.
+    if (overflowText != null) {
+      return Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: AppTheme.kInkSoft,
+          border: Border.all(color: AppTheme.kCreamCard, width: 2),
         ),
-      ),
+        alignment: Alignment.center,
+        child: Text(
+          overflowText,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: AppTheme.kCreamCard,
+          ),
+        ),
+      );
+    }
+
+    // Caso jugador: foto o inicial, con borde del color de la tarjeta.
+    return PlayerAvatar(
+      photoUrl: photoUrl,
+      name: name ?? '?',
+      size: 32,
+      borderColor: AppTheme.kCreamCard,
+      borderWidth: 2,
+      // Placeholder verde con inicial crema, como estaba.
+      backgroundColor: AppTheme.kGreen,
+      initialColor: AppTheme.kCreamCard,
     );
   }
-
-  String _initial(String name) => name.isNotEmpty ? name[0].toUpperCase() : '?';
 
   String _monthAbbr(int month) {
     const months = [

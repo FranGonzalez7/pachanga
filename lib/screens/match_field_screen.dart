@@ -4,6 +4,8 @@ import '../logic/formations.dart';
 import '../models/match.dart';
 import '../models/membership.dart';
 import '../services/firestore_service.dart';
+import '../theme/app_theme.dart';
+import '../widgets/player_avatar.dart';
 import 'match_score_screen.dart';
 
 class MatchFieldScreen extends StatefulWidget {
@@ -137,6 +139,7 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
         slotIndex: slotIndex,
         playerId: _myUid,
         playerName: widget.currentMembership.displayName,
+        photoUrl: widget.currentMembership.photoUrl,
         position: position,
       );
       await _reloadMatch();
@@ -183,6 +186,7 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
       slotIndex: slotIndex,
       playerId: player.userId,
       playerName: player.displayName,
+      photoUrl: player.photoUrl,
       position: position,
     );
     await _reloadMatch();
@@ -434,9 +438,12 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
               onPressed: _askFormation,
               icon: Text(
                 getFormation(_match.type, _activeFormationName).name,
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              label: const Icon(Icons.arrow_drop_down),
+              label: const Icon(Icons.arrow_drop_down, color: Colors.white),
             ),
           if (_isCaptain)
             IconButton(
@@ -445,6 +452,13 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
               onPressed: _clearField,
             ),
         ],
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Equipo Rojo'),
+            Tab(text: 'Equipo Azul'),
+          ],
+        ),
       ),
       body: Column(
         children: [
@@ -459,18 +473,6 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
                     // Azul (B) defiende abajo: coordenadas tal cual.
                     _buildTeamField(Match.teamB, Colors.blue, mirror: false),
                   ],
-                ),
-                // Selectores de equipo: dos burbujas flotantes flanqueando
-                // la portería superior (rojo a la izquierda, azul a la derecha)
-                Positioned(
-                  top: 10,
-                  left: 16,
-                  child: _buildTeamTabBubble(0, 'Rojo', Colors.red),
-                ),
-                Positioned(
-                  top: 10,
-                  right: 16,
-                  child: _buildTeamTabBubble(1, 'Azul', Colors.blue),
                 ),
                 if (_isSaving)
                   Container(
@@ -531,17 +533,17 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              CircleAvatar(
-                                radius: 22,
-                                backgroundColor: isSelected
-                                    ? Colors.green
-                                    : null,
-                                child: Text(
-                                  _initials(player.displayName),
-                                  style: TextStyle(
-                                    color: isSelected ? Colors.white : null,
-                                  ),
-                                ),
+                              // Avatar del jugador: foto o inicial. Borde
+                              // verde si está seleccionado (señal de "elegido
+                              // para colocar"), tinta suave si no.
+                              PlayerAvatar(
+                                photoUrl: player.photoUrl,
+                                name: player.displayName,
+                                size: 44,
+                                borderColor: isSelected
+                                    ? AppTheme.kGreen
+                                    : AppTheme.kInkSoft,
+                                borderWidth: isSelected ? 3 : 1,
                               ),
                               const SizedBox(height: 4),
                               Text(
@@ -581,36 +583,6 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
     return list;
   }
 
-  // Burbuja flotante para cambiar de equipo (tab). La activa se ve a plena
-  // opacidad y con borde grueso; la inactiva, atenuada. El color de equipo
-  // es deliberadamente fijo: es identidad del equipo, no un color del tema.
-  Widget _buildTeamTabBubble(int tabIndex, String label, Color color) {
-    final isActive = _tabController.index == tabIndex;
-    return GestureDetector(
-      onTap: () => _tabController.animateTo(tabIndex),
-      child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 200),
-        opacity: isActive ? 1.0 : 0.45,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white, width: isActive ? 3 : 1),
-          ),
-          child: Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   // Campo completo de un equipo: SVG de fondo y sus burbujas colocadas
   // según la formación guardada en el partido.
   Widget _buildTeamField(String team, Color teamColor, {required bool mirror}) {
@@ -620,33 +592,21 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
         : _match.formationB;
     final formation = getFormation(_match.type, formationName);
 
-    // AspectRatio fuerza la proporción exacta del SVG (680x1050): el campo
-    // se ve ENTERO siempre, y las coordenadas de formación pasan a mapear
-    // sobre el dibujo real, no sobre un recorte. El Container pinta de verde
-    // oscuro las bandas que sobren alrededor (el "fuera de campo").
-    return Container(
-      color: const Color(0xFF1B5E20),
-      alignment: Alignment.center,
-      child: AspectRatio(
-        aspectRatio: 680 / 1050,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            // fill ya no deforma: el contenedor tiene la proporción del SVG.
-            SvgPicture.asset('assets/field.svg', fit: BoxFit.fill),
-            for (int i = 0; i < slotIndexes.length; i++)
-              _buildPositionedBubble(
-                slotIndex: slotIndexes[i],
-                // Contrato del catálogo: la coordenada i va con el slot i del equipo.
-                coord: i < formation.positions.length
-                    ? formation.positions[i]
-                    : const Offset(0.5, 0.5), // red de seguridad: al centro
-                teamColor: teamColor,
-                mirror: mirror,
-              ),
-          ],
-        ),
-      ),
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        SvgPicture.asset('assets/field.svg', fit: BoxFit.cover),
+        for (int i = 0; i < slotIndexes.length; i++)
+          _buildPositionedBubble(
+            slotIndex: slotIndexes[i],
+            // Contrato del catálogo: la coordenada i va con el slot i del equipo.
+            coord: i < formation.positions.length
+                ? formation.positions[i]
+                : const Offset(0.5, 0.5), // red de seguridad: al centro
+            teamColor: teamColor,
+            mirror: mirror,
+          ),
+      ],
     );
   }
 
@@ -659,16 +619,11 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
     required bool mirror,
   }) {
     final dy = mirror ? 1 - coord.dy : coord.dy;
-    return AnimatedAlign(
-      duration: const Duration(milliseconds: 450),
-      curve: Curves.easeInOut,
+    return Align(
       alignment: Alignment(coord.dx * 2 - 1, dy * 2 - 1),
       child: _buildBubble(slotIndex, teamColor),
     );
   }
-
-  // Tamaño de la burbuja (pensado para acoger la foto de perfil en el futuro)
-  static const double _bubbleSize = 76;
 
   Widget _buildBubble(int slotIndex, Color teamColor) {
     final slot = _match.slots[slotIndex];
@@ -679,45 +634,52 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: _bubbleSize,
-            height: _bubbleSize,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: isOccupied ? teamColor : Colors.white24,
-              border: Border.all(color: teamColor, width: 3),
-            ),
-            child: Center(
-              child: Text(
-                isOccupied ? _initials(slot.playerName!) : '+',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 22,
+          // Vacío: círculo semitransparente con "+". Ocupado: PlayerAvatar
+          // (foto o inicial) con el borde del color del equipo.
+          isOccupied
+              ? PlayerAvatar(
+                  photoUrl: slot.photoUrl,
+                  name: slot.playerName ?? '?',
+                  size: 70, // 76 total con el borde de 3
+                  borderColor: teamColor,
+                  borderWidth: 3,
+                  // Placeholder sin foto: fondo del color de equipo, inicial
+                  // blanca, como era la burbuja rellena de antes.
+                  backgroundColor: teamColor,
+                  initialColor: Colors.white,
+                )
+              : Container(
+                  width: 76,
+                  height: 76,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white24,
+                    border: Border.all(color: teamColor, width: 3),
+                  ),
+                  child: const Center(
+                    child: Text(
+                      '+',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 22,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-          ),
           const SizedBox(height: 4),
           if (isOccupied)
             Text(
               slot.playerName!,
-              style: const TextStyle(color: Colors.white, fontSize: 13),
+              style: const TextStyle(color: Colors.white, fontSize: 12),
             ),
           if (isOccupied && slot.position.isNotEmpty)
             Text(
               slot.position,
-              style: const TextStyle(color: Colors.white70, fontSize: 11),
+              style: const TextStyle(color: Colors.white70, fontSize: 10),
             ),
         ],
       ),
     );
-  }
-
-  String _initials(String name) {
-    if (name.isEmpty) return '?';
-    final parts = name.trim().split(' ');
-    if (parts.length == 1) return parts[0][0].toUpperCase();
-    return (parts[0][0] + parts[1][0]).toUpperCase();
   }
 }
