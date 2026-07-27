@@ -39,6 +39,8 @@ dependencies:
   firebase_auth: ^6.5.2
   flutter_svg: ^2.0.10
   google_fonts: ^6.2.1
+  firebase_storage: ^13.4.5
+  image_picker: ^1.1.2
 
 dev_dependencies:
   flutter_test:

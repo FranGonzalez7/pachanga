@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>NSCameraUsageDescription</key>
+	<string>Pachanga necesita la cámara para que puedas hacerte una foto de perfil.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Pachanga necesita acceder a tus fotos para elegir tu foto de perfil.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

@@ -33,17 +33,17 @@ const Map<String, List<Formation>> formationsByType = {
     Formation(
       name: '1-2-1',
       positions: [
-        Offset(0.50, 0.92), // portero
+        Offset(0.50, 0.97), // portero
         Offset(0.50, 0.72), // defensa
         Offset(0.25, 0.52), // medio izquierdo
         Offset(0.75, 0.52), // medio derecho
-        Offset(0.50, 0.32), // delantero
+        Offset(0.50, 0.30), // delantero
       ],
     ),
     Formation(
       name: '2-1-1',
       positions: [
-        Offset(0.50, 0.92), // portero
+        Offset(0.50, 0.97), // portero
         Offset(0.30, 0.72), // defensa izquierdo
         Offset(0.70, 0.72), // defensa derecho
         Offset(0.50, 0.52), // medio
@@ -53,7 +53,7 @@ const Map<String, List<Formation>> formationsByType = {
     Formation(
       name: '2-2',
       positions: [
-        Offset(0.50, 0.92), // portero
+        Offset(0.50, 0.97), // portero
         Offset(0.30, 0.72), // defensa izquierdo
         Offset(0.70, 0.72), // defensa derecho
         Offset(0.30, 0.42), // delantero izquierdo
@@ -65,7 +65,7 @@ const Map<String, List<Formation>> formationsByType = {
     Formation(
       name: '2-2-1',
       positions: [
-        Offset(0.50, 0.92), // portero
+        Offset(0.50, 0.97), // portero
         Offset(0.30, 0.74), // defensa izquierdo
         Offset(0.70, 0.74), // defensa derecho
         Offset(0.30, 0.52), // medio izquierdo
@@ -76,7 +76,7 @@ const Map<String, List<Formation>> formationsByType = {
     Formation(
       name: '1-2-2',
       positions: [
-        Offset(0.50, 0.92), // portero
+        Offset(0.50, 0.97), // portero
         Offset(0.50, 0.74), // defensa
         Offset(0.25, 0.54), // medio izquierdo
         Offset(0.75, 0.54), // medio derecho
@@ -87,7 +87,7 @@ const Map<String, List<Formation>> formationsByType = {
     Formation(
       name: '2-1-2',
       positions: [
-        Offset(0.50, 0.92), // portero
+        Offset(0.50, 0.97), // portero
         Offset(0.30, 0.74), // defensa izquierdo
         Offset(0.70, 0.74), // defensa derecho
         Offset(0.50, 0.54), // medio
@@ -100,7 +100,7 @@ const Map<String, List<Formation>> formationsByType = {
     Formation(
       name: '3-1-2',
       positions: [
-        Offset(0.50, 0.92), // portero
+        Offset(0.50, 0.97), // portero
         Offset(0.22, 0.74), // defensa izquierdo
         Offset(0.50, 0.78), // defensa central
         Offset(0.78, 0.74), // defensa derecho
@@ -112,7 +112,7 @@ const Map<String, List<Formation>> formationsByType = {
     Formation(
       name: '2-3-1',
       positions: [
-        Offset(0.50, 0.92), // portero
+        Offset(0.50, 0.97), // portero
         Offset(0.30, 0.76), // defensa izquierdo
         Offset(0.70, 0.76), // defensa derecho
         Offset(0.20, 0.54), // medio izquierdo
@@ -124,7 +124,7 @@ const Map<String, List<Formation>> formationsByType = {
     Formation(
       name: '3-2-1',
       positions: [
-        Offset(0.50, 0.92), // portero
+        Offset(0.50, 0.97), // portero
         Offset(0.22, 0.76), // defensa izquierdo
         Offset(0.50, 0.80), // defensa central
         Offset(0.78, 0.76), // defensa derecho
@@ -136,7 +136,7 @@ const Map<String, List<Formation>> formationsByType = {
     Formation(
       name: '2-1-2-1',
       positions: [
-        Offset(0.50, 0.92), // portero
+        Offset(0.50, 0.97), // portero
         Offset(0.30, 0.78), // defensa izquierdo
         Offset(0.70, 0.78), // defensa derecho
         Offset(0.50, 0.60), // medio defensivo

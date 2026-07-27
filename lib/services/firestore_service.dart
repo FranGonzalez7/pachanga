@@ -7,10 +7,13 @@ import '../models/match.dart';
 import '../models/slot.dart';
 import '../logic/match_scoring.dart';
 import '../logic/formations.dart';
+import 'dart:io';
+import 'package:firebase_storage/firebase_storage.dart';
 
 class FirestoreService {
   // Referencia a la base de datos
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
 
   // Crea (o sobrescribe) el documento de un usuario en la colección 'users'
   Future<void> createUser(AppUser user) async {
@@ -178,7 +181,7 @@ class FirestoreService {
       createdBy: createdBy,
       scheduledAt: scheduledAt,
       createdAt: DateTime.now(),
-      location: location, 
+      location: location,
       formationA: defaultFormationByType[type] ?? '',
       formationB: defaultFormationByType[type] ?? '',
       slots: _generateEmptySlots(teamSize),
@@ -709,5 +712,37 @@ class FirestoreService {
       'scheduledAt': Timestamp.fromDate(scheduledAt),
       'location': location,
     });
+  }
+
+  // Sube una foto de perfil a Storage y guarda su URL en el Membership.
+  // Recibe el archivo ya elegido por la UI (la selección necesita contexto
+  // de pantalla, así que vive allí; aquí solo subimos y guardamos).
+  //
+  // Ruta en Storage: avatars/{userId}/avatar.jpg  -> un nombre FIJO por
+  // usuario, así cada foto nueva SOBREESCRIBE la anterior y no acumulamos
+  // basura (si el nombre fuera aleatorio, cada cambio dejaría la vieja).
+  Future<String> uploadProfilePhoto({
+    required String userId,
+    required String groupId,
+    required File imageFile,
+  }) async {
+    // 1. Referencia al hueco del usuario en Storage.
+    final ref = _storage.ref().child('avatars/$userId/avatar.jpg');
+
+    // 2. Subimos el archivo. putFile devuelve una tarea que esperamos.
+    await ref.putFile(imageFile, SettableMetadata(contentType: 'image/jpeg'));
+
+    // 3. Obtenemos la URL pública de descarga (la que guardaremos y usará
+    //    la app para pintar el avatar).
+    final downloadUrl = await ref.getDownloadURL();
+
+    // 4. Guardamos la URL en el Membership (donde la lee toda la app).
+    //    Reutilizamos el patrón de siempre: escritura directa al doc.
+    final membershipRef = _db
+        .collection('memberships')
+        .doc('${userId}_$groupId');
+    await membershipRef.update({'photoUrl': downloadUrl});
+
+    return downloadUrl;
   }
 }

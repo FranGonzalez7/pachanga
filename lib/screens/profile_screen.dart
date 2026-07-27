@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/app_user.dart';
 import '../models/group.dart';
 import '../models/membership.dart';
@@ -7,8 +9,7 @@ import '../services/firestore_service.dart';
 import '../theme/app_theme.dart';
 
 // Pantalla de perfil: quién eres tú. Separada de Ajustes, que es
-// configuración de la app. Aquí viven tu foto (bloque B), tu nombre y
-// tus datos personales.
+// configuración de la app. Aquí viven tu foto, tu nombre y tus datos.
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -19,10 +20,13 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final AuthService _authService = AuthService();
   final FirestoreService _firestoreService = FirestoreService();
+  final ImagePicker _picker = ImagePicker();
 
-  // No es 'final': tras editar el nombre lo reasignamos para recargar.
+  // No es 'final': tras editar nombre o foto lo reasignamos para recargar.
   late Future<({Membership membership, Group group, AppUser? user})?>
   _profileFuture;
+
+  bool _uploadingPhoto = false; // mientras sube, el avatar muestra spinner
 
   @override
   void initState() {
@@ -43,6 +47,63 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() {
       _profileFuture = _loadProfile();
     });
+  }
+
+  // Hoja inferior para elegir el origen de la foto: cámara o galería.
+  Future<void> _pickPhoto(Membership membership) async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera, color: AppTheme.kGreen),
+              title: const Text('Hacer una foto'),
+              onTap: () => Navigator.of(context).pop(ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library, color: AppTheme.kGreen),
+              title: const Text('Elegir de la galería'),
+              onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null) return; // cerró la hoja sin elegir
+
+    // Pedimos la imagen YA redimensionada y comprimida en la propia
+    // selección: 512px de lado máximo y calidad 70. Un avatar no necesita
+    // más, y así subimos ~50 KB en vez de los 4-8 MB de una foto de móvil.
+    final XFile? picked = await _picker.pickImage(
+      source: source,
+      maxWidth: 512,
+      maxHeight: 512,
+      imageQuality: 70,
+    );
+
+    if (picked == null) return; // canceló la cámara/galería
+
+    setState(() => _uploadingPhoto = true);
+
+    try {
+      await _firestoreService.uploadProfilePhoto(
+        userId: membership.userId,
+        groupId: membership.groupId,
+        imageFile: File(picked.path),
+      );
+      _reload(); // recarga para mostrar la foto nueva
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo subir la foto.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingPhoto = false);
+    }
   }
 
   // Diálogo para cambiar el nombre propio. Mismo patrón que el de los
@@ -88,7 +149,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
 
-    // Canceló, vacío, o el mismo nombre de antes: nada que hacer.
     if (newName == null || newName.isEmpty) return;
     if (newName == membership.displayName) return;
 
@@ -133,9 +193,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 padding: const EdgeInsets.all(24),
                 child: Column(
                   children: [
-                    // --- Avatar (placeholder; la foto llega en el bloque B) ---
-                    _buildAvatar(membership.displayName),
-                    const SizedBox(height: 16),
+                    // --- Avatar tocable, con la foto o el placeholder ---
+                    _buildAvatar(membership),
+                    const SizedBox(height: 12),
+                    TextButton.icon(
+                      onPressed: _uploadingPhoto
+                          ? null
+                          : () => _pickPhoto(membership),
+                      icon: const Icon(Icons.photo_camera, size: 18),
+                      label: const Text('Cambiar foto'),
+                    ),
+                    const SizedBox(height: 8),
                     Text(
                       membership.displayName,
                       style: Theme.of(context).textTheme.headlineMedium,
@@ -193,33 +261,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // Avatar circular: borde verde, interior crema, inicial en verde.
-  // Mismo lenguaje visual que el avatar del Home.
-  Widget _buildAvatar(String name) {
-    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
-    return Container(
-      width: 120,
-      height: 120,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: AppTheme.kCreamCard,
-        border: Border.all(color: AppTheme.kGreen, width: 4),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.kInk.withValues(alpha: 0.15),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        initial,
-        style: const TextStyle(
-          fontSize: 48,
-          fontWeight: FontWeight.bold,
-          color: AppTheme.kGreen,
+  // Avatar circular: muestra la foto si existe, si no la inicial. Mientras
+  // sube una foto nueva, un spinner encima. Tocarlo abre el selector.
+  Widget _buildAvatar(Membership membership) {
+    final photoUrl = membership.photoUrl;
+    final initial = membership.displayName.isNotEmpty
+        ? membership.displayName[0].toUpperCase()
+        : '?';
+
+    return GestureDetector(
+      onTap: _uploadingPhoto ? null : () => _pickPhoto(membership),
+      child: Container(
+        width: 120,
+        height: 120,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: AppTheme.kCreamCard,
+          border: Border.all(color: AppTheme.kGreen, width: 4),
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.kInk.withValues(alpha: 0.15),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+          // Si hay foto, la ponemos como fondo del círculo.
+          image: photoUrl != null
+              ? DecorationImage(
+                  image: NetworkImage(photoUrl),
+                  fit: BoxFit.cover,
+                )
+              : null,
         ),
+        alignment: Alignment.center,
+        child: _uploadingPhoto
+            ? const CircularProgressIndicator(color: AppTheme.kGreen)
+            : (photoUrl == null
+                  ? Text(
+                      initial,
+                      style: const TextStyle(
+                        fontSize: 48,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.kGreen,
+                      ),
+                    )
+                  : null),
       ),
     );
   }

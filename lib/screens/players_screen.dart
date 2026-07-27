@@ -4,6 +4,7 @@ import '../services/firestore_service.dart';
 import '../models/membership.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_bar_title.dart';
+import '../widgets/player_avatar.dart';
 import '../widgets/player_card_dialog.dart';
 
 // Criterios de ordenación disponibles para la lista de jugadores.
@@ -120,7 +121,6 @@ class _PlayersScreenState extends State<PlayersScreen> {
       ),
     );
 
-    // Si canceló o no escribió nada, salimos.
     if (name == null || name.isEmpty) return;
     if (_myMembership == null) return;
 
@@ -129,7 +129,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
       displayName: name,
     );
 
-    _refreshPlayers(); // la lista vuelve a cargar e incluye el nuevo fantasma
+    _refreshPlayers();
   }
 
   @override
@@ -146,9 +146,36 @@ class _PlayersScreenState extends State<PlayersScreen> {
               setState(() => _sort = value);
             },
             itemBuilder: (context) => const [
-              PopupMenuItem(value: PlayerSort.points, child: Text('Puntos')),
-              PopupMenuItem(value: PlayerSort.goals, child: Text('Goles')),
-              PopupMenuItem(value: PlayerSort.name, child: Text('Nombre')),
+              PopupMenuItem(
+                value: PlayerSort.points,
+                child: Row(
+                  children: [
+                    Icon(Icons.emoji_events_outlined, size: 20),
+                    SizedBox(width: 12),
+                    Text('Puntos'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: PlayerSort.goals,
+                child: Row(
+                  children: [
+                    Icon(Icons.sports_soccer, size: 20),
+                    SizedBox(width: 12),
+                    Text('Goles'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: PlayerSort.name,
+                child: Row(
+                  children: [
+                    Icon(Icons.sort_by_alpha, size: 20),
+                    SizedBox(width: 12),
+                    Text('Nombre'),
+                  ],
+                ),
+              ),
             ],
           ),
         ],
@@ -184,18 +211,18 @@ class _PlayersScreenState extends State<PlayersScreen> {
                     initialIndex: index,
                     myUserId: _myUid,
                     viewerIsCaptain: _isCaptain,
-                    onChanged:
-                        _refreshPlayers, // al borrar, la lista se recarga
+                    onChanged: _refreshPlayers,
                   ),
-                  leading: CircleAvatar(
-                    child: Text(
-                      player.displayName.isNotEmpty
-                          ? player.displayName[0].toUpperCase()
-                          : '?',
-                    ),
+                  // Avatar circular con borde verde, 10% mayor que antes.
+                  // El borde lo dibuja el propio PlayerAvatar.
+                  leading: PlayerAvatar(
+                    photoUrl: player.photoUrl,
+                    name: player.displayName,
+                    size: 48,
+                    borderColor: AppTheme.kGreen,
                   ),
                   title: Text(player.displayName),
-                  subtitle: Text(_subtitleFor(player, isCaptain)),
+                  subtitle: _buildSubtitle(player, isCaptain),
                   trailing: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.end,
@@ -223,7 +250,6 @@ class _PlayersScreenState extends State<PlayersScreen> {
           );
         },
       ),
-      // FAB solo para el capitán, mismo formato que el de Partidos.
       floatingActionButton: _isCaptain
           ? FloatingActionButton.extended(
               onPressed: _openCreateGhost,
@@ -234,9 +260,21 @@ class _PlayersScreenState extends State<PlayersScreen> {
     );
   }
 
-  // Subtítulo de la fila: distingue capitán, jugador y fantasma.
-  String _subtitleFor(Membership player, bool isCaptain) {
-    if (player.isGhost) return 'Sin cuenta';
-    return isCaptain ? 'Capitán' : 'Jugador';
+  // Subtítulo de la fila: distingue capitán (con estrella), jugador y fantasma.
+  Widget _buildSubtitle(Membership player, bool isCaptain) {
+    if (player.isGhost) {
+      return const Text('Sin cuenta');
+    }
+    if (isCaptain) {
+      // "Capitán" con una estrella ámbar detrás.
+      return Row(
+        children: [
+          const Text('Capitán'),
+          const SizedBox(width: 4),
+          Icon(Icons.star, size: 14, color: AppTheme.kAmber),
+        ],
+      );
+    }
+    return const Text('Jugador');
   }
 }
