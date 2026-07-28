@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import '../models/membership.dart';
-import '../models/app_user.dart';
 import '../services/firestore_service.dart';
+import '../theme/app_theme.dart';
+import 'player_avatar.dart';
 
-// Diálogo con las cartas de jugador, deslizables horizontalmente.
+// Diálogo con las cartas de jugador (estilo cromo), deslizables horizontalmente.
 class PlayerCardDialog extends StatefulWidget {
   final List<Membership> players;
   final int initialIndex;
@@ -113,10 +114,7 @@ class _PlayerCardDialogState extends State<PlayerCardDialog> {
           controller: controller,
           autofocus: true,
           textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(
-            labelText: 'Nombre',
-            border: OutlineInputBorder(),
-          ),
+          decoration: const InputDecoration(labelText: 'Nombre'),
         ),
         actions: [
           TextButton(
@@ -156,18 +154,19 @@ class _PlayerCardDialogState extends State<PlayerCardDialog> {
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(vertical: 40),
       child: SizedBox(
-        height: 560,
+        height: 640,
         child: PageView.builder(
           controller: _pageController,
           itemCount: widget.players.length,
           itemBuilder: (context, index) {
             final player = widget.players[index];
-            final canDelete =
-                widget.viewerIsCaptain && player.userId != widget.myUserId;
+            final isMe = player.userId == widget.myUserId;
+            final canDelete = widget.viewerIsCaptain && !isMe;
             // Editar nombre: solo el capitán, y solo si es un fantasma.
             final canEdit = widget.viewerIsCaptain && player.isGhost;
             return _PlayerCard(
               player: player,
+              isMe: isMe,
               canDelete: canDelete,
               canEdit: canEdit,
               onDelete: () => _confirmDelete(player),
@@ -180,211 +179,331 @@ class _PlayerCardDialogState extends State<PlayerCardDialog> {
   }
 }
 
-// Una carta individual. Muestra los datos del jugador y, si procede,
-// un botón de borrar en la esquina superior derecha.
+// Una carta individual, estilo cromo de fútbol. Marco ámbar si es el propio
+// jugador ("cromo dorado"), verde para el resto. Las acciones del capitán
+// van fuera del cromo, debajo, para no ensuciar el diseño.
 class _PlayerCard extends StatelessWidget {
   final Membership player;
+  final bool isMe;
   final bool canDelete;
   final bool canEdit;
   final VoidCallback onDelete;
   final VoidCallback onEdit;
 
-  _PlayerCard({
+  const _PlayerCard({
     required this.player,
+    required this.isMe,
     required this.canDelete,
     required this.canEdit,
     required this.onDelete,
     required this.onEdit,
   });
 
-  final FirestoreService _firestoreService = FirestoreService();
+  // Radio del marco del cromo y hueco alrededor de la foto. La foto redondea
+  // con (radio del marco - hueco) para que su curva quede CONCÉNTRICA con la
+  // del marco (paralelas, como un paspartú que respeta la forma).
+  static const double _frameRadius = 22;
+  static const double _photoInset = 14; // hueco entre marco y foto
+  static const double _cardHeight =
+      520; // altura FIJA: todos los cromos iguales
 
   @override
   Widget build(BuildContext context) {
+    // Marco: ámbar para ti (cromo dorado), verde para los demás.
+    final frameColor = isMe ? AppTheme.kAmber : AppTheme.kGreen;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        // Stack: la carta debajo, el botón de borrar flotando en la esquina.
-        child: Stack(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _buildAvatar(),
-                  const SizedBox(height: 16),
-                  Text(
-                    player.displayName,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                    overflow: TextOverflow.ellipsis,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // --- El cromo (altura fija: no cambia haya botones o no) ---
+          SizedBox(
+            height: _cardHeight,
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppTheme.kCreamCard,
+                borderRadius: BorderRadius.circular(_frameRadius),
+                border: Border.all(color: frameColor, width: 3),
+                // Doble sombra: una difusa y lejana + otra cercana = 3D.
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.kInk.withValues(alpha: 0.35),
+                    blurRadius: 24,
+                    offset: const Offset(0, 12),
                   ),
-                  Text(
-                    _roleLabel(),
-                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    '${player.points}',
-                    style: const TextStyle(
-                      fontSize: 44,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const Text(
-                    'puntos',
-                    style: TextStyle(fontSize: 13, color: Colors.grey),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildPreferredPositions(),
-                  const Divider(height: 28),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _stat('Jugados', '${player.matchesPlayed}'),
-                      _stat('Ganados', '${player.wins}'),
-                      _stat('Perdidos', '${player.losses}'),
-                      _stat('Goles', '${player.goals}'),
-                    ],
+                  BoxShadow(
+                    color: AppTheme.kInk.withValues(alpha: 0.20),
+                    blurRadius: 6,
+                    offset: const Offset(0, 3),
                   ),
                 ],
               ),
-            ),
-            // Botón de borrar, solo si el capitán mira a otro jugador.
-            // Botones de acción del capitán, en la esquina superior derecha.
-            if (canEdit || canDelete)
-              Positioned(
-                top: 8,
-                right: 8,
-                child: Row(
-                  children: [
-                    if (canEdit)
-                      IconButton(
-                        icon: const Icon(
-                          Icons.edit_outlined,
-                          color: Colors.blue,
-                        ),
-                        tooltip: 'Editar nombre',
-                        onPressed: onEdit,
-                      ),
-                    if (canDelete)
-                      IconButton(
-                        icon: const Icon(
-                          Icons.delete_outline,
-                          color: Colors.red,
-                        ),
-                        tooltip: 'Eliminar jugador',
-                        onPressed: onDelete,
-                      ),
-                  ],
-                ),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                children: [
+                  _buildTopZone(),
+                  Expanded(child: _buildBottomZone()),
+                ],
               ),
-          ],
-        ),
+            ),
+          ),
+
+          // --- Acciones del capitán, fuera del cromo (altura reservada
+          //     siempre, para que el cromo no se desplace tenga o no botones).
+          //     Solo icono, pegadas a la derecha. ---
+          SizedBox(
+            height: 52,
+            child: (canEdit || canDelete)
+                ? Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        if (canEdit)
+                          _actionPill(
+                            icon: Icons.edit_outlined,
+                            color: AppTheme.kInkSoft,
+                            onTap: onEdit,
+                          ),
+                        if (canEdit && canDelete) const SizedBox(width: 8),
+                        if (canDelete)
+                          _actionPill(
+                            icon: Icons.delete_outline,
+                            color: Colors.red.shade400,
+                            onTap: onDelete,
+                          ),
+                      ],
+                    ),
+                  )
+                : null,
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildAvatar() {
-    return FutureBuilder<AppUser?>(
-      future: _firestoreService.getUser(player.userId),
-      builder: (context, snap) {
-        final photoUrl = snap.data?.photoUrl;
-        if (photoUrl != null && photoUrl.isNotEmpty) {
-          return CircleAvatar(
-            radius: 44,
-            backgroundImage: NetworkImage(photoUrl),
-          );
-        }
-        return CircleAvatar(
-          radius: 44,
-          child: Text(
-            _initials(player.displayName),
-            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-          ),
-        );
-      },
-    );
-  }
+  // Zona superior: foto grande a la izquierda (rectangular, dos esquinas
+  // redondeadas siguiendo la curva del marco) y el número de puntos a la
+  // derecha, con la insignia de rol. La foto va despegada del marco (_photoInset).
+  Widget _buildTopZone() {
+    // Radio de la foto = radio del marco - hueco => curvas concéntricas.
+    final photoCorner = _frameRadius - _photoInset;
 
-  Widget _buildPreferredPositions() {
-    return FutureBuilder<AppUser?>(
-      future: _firestoreService.getUser(player.userId),
-      builder: (context, snap) {
-        final positions = snap.data?.preferredPositions ?? [];
-
-        if (positions.isEmpty) {
-          return Text(
-            'Sin posiciones preferidas',
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.grey[500],
-              fontStyle: FontStyle.italic,
-            ),
-          );
-        }
-
-        return Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          alignment: WrapAlignment.center,
-          children: positions
-              .map(
-                (pos) => Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(pos, style: const TextStyle(fontSize: 12)),
+    return SizedBox(
+      height: 276,
+      child: Stack(
+        children: [
+          // Foto despegada del marco por arriba y por la izquierda (_photoInset).
+          Positioned(
+            top: _photoInset,
+            left: _photoInset,
+            child: ClipRRect(
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(photoCorner),
+                bottomRight: const Radius.circular(55),
+              ),
+              child: SizedBox(
+                width: 224,
+                height: 262,
+                // PlayerAvatar en modo "desnudo" (sin borde): aquí la forma
+                // la da el ClipRRect, no el widget.
+                child: PlayerAvatar(
+                  photoUrl: player.photoUrl,
+                  name: player.displayName,
+                  size: 262,
+                  backgroundColor: AppTheme.kGreen,
+                  initialColor: Colors.white,
+                  fontSize: 88,
                 ),
-              )
-              .toList(),
-        );
-      },
+              ),
+            ),
+          ),
+
+          // Número de puntos, arriba a la derecha.
+          Positioned(
+            top: 18,
+            right: 18,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '${player.points}',
+                  style: const TextStyle(
+                    fontSize: 46,
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.kGreen,
+                    height: 1,
+                  ),
+                ),
+                const Text(
+                  'PUNTOS',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.kAmber,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Insignia de rol, abajo a la derecha.
+          Positioned(bottom: 14, right: 16, child: _roleBadge()),
+        ],
+      ),
     );
   }
 
-  Widget _stat(String label, String value) {
+  // Zona inferior: nombre y posiciones arriba, la rejilla de stats abajo.
+  // spaceBetween empuja las stats hacia el fondo del cromo (menos aire debajo).
+  Widget _buildBottomZone() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            children: [
+              Text(
+                player.displayName,
+                style: const TextStyle(
+                  fontSize: 23,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.kInk,
+                ),
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              // Posiciones: texto de ejemplo por ahora (aparcadas).
+              const Text(
+                'Lateral · Delantero',
+                style: TextStyle(fontSize: 13, color: AppTheme.kInkSoft),
+              ),
+            ],
+          ),
+          Column(
+            children: [
+              // Divider verde grueso.
+              Container(height: 2, color: AppTheme.kGreen),
+              const SizedBox(height: 14),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _stat(
+                    Icons.stadium,
+                    'Jugados',
+                    '${player.matchesPlayed}',
+                    AppTheme.kInkSoft,
+                  ),
+                  _stat(
+                    Icons.military_tech,
+                    'Ganados',
+                    '${player.wins}',
+                    AppTheme.kAmber,
+                  ),
+                  _stat(
+                    Icons.close,
+                    'Perdidos',
+                    '${player.losses}',
+                    AppTheme.kInkSoft,
+                  ),
+                  _stat(
+                    Icons.sports_soccer,
+                    'Goles',
+                    '${player.goals}',
+                    AppTheme.kGreen,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Insignia de rol: capitán (con estrella), fantasma o jugador.
+  Widget _roleBadge() {
+    late final String label;
+    late final IconData? icon;
+
+    if (player.isGhost) {
+      label = 'SIN CUENTA';
+      icon = null;
+    } else if (player.role == 'captain') {
+      label = 'CAPITÁN';
+      icon = Icons.star;
+    } else {
+      return const SizedBox.shrink(); // jugador normal: sin insignia
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppTheme.kAmber,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 12, color: AppTheme.kInk),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.kInk,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _stat(IconData icon, String label, String value, Color iconColor) {
     return Column(
       children: [
+        Icon(icon, size: 16, color: iconColor),
+        const SizedBox(height: 3),
         Text(
           value,
-          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.bold,
+            color: AppTheme.kInk,
+          ),
         ),
-        const SizedBox(height: 2),
-        Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 10, color: AppTheme.kInkSoft),
+        ),
       ],
     );
   }
 
-  String _initials(String name) {
-    if (name.isEmpty) return '?';
-    final parts = name.trim().split(' ');
-    if (parts.length == 1) return parts[0][0].toUpperCase();
-    return (parts[0][0] + parts[1][0]).toUpperCase();
-  }
-
-  String _roleLabel() {
-    if (player.isGhost) return 'Sin cuenta';
-    return player.role == 'captain' ? 'Capitán' : 'Jugador';
+  // Botón redondo de acción del capitán, solo icono (fuera del cromo).
+  Widget _actionPill({
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: AppTheme.kCreamCard,
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Icon(icon, size: 20, color: color),
+        ),
+      ),
+    );
   }
 }

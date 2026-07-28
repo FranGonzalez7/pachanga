@@ -438,12 +438,9 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
               onPressed: _askFormation,
               icon: Text(
                 getFormation(_match.type, _activeFormationName).name,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
-              label: const Icon(Icons.arrow_drop_down, color: Colors.white),
+              label: const Icon(Icons.arrow_drop_down),
             ),
           if (_isCaptain)
             IconButton(
@@ -505,7 +502,7 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
     return Container(
       height: 110,
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-      color: Colors.grey[200],
+      color: AppTheme.kCream,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -592,21 +589,32 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
         : _match.formationB;
     final formation = getFormation(_match.type, formationName);
 
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        SvgPicture.asset('assets/field.svg', fit: BoxFit.cover),
-        for (int i = 0; i < slotIndexes.length; i++)
-          _buildPositionedBubble(
-            slotIndex: slotIndexes[i],
-            // Contrato del catálogo: la coordenada i va con el slot i del equipo.
-            coord: i < formation.positions.length
-                ? formation.positions[i]
-                : const Offset(0.5, 0.5), // red de seguridad: al centro
-            teamColor: teamColor,
-            mirror: mirror,
-          ),
-      ],
+    // AspectRatio fuerza la proporción del SVG (680x1050): el campo se ve
+    // ENTERO, centrado, sin que BoxFit.cover lo agrande y lo recorte por los
+    // lados. Con la proporción ya fijada, BoxFit.fill no deforma. El fondo
+    // verde oscuro cubre las bandas que sobren (el "fuera de campo").
+    return Container(
+      color: const Color(0xFF1B5E20),
+      alignment: Alignment.center,
+      child: AspectRatio(
+        aspectRatio: 680 / 1050,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            SvgPicture.asset('assets/field.svg', fit: BoxFit.fill),
+            for (int i = 0; i < slotIndexes.length; i++)
+              _buildPositionedBubble(
+                slotIndex: slotIndexes[i],
+                // Contrato del catálogo: la coordenada i va con el slot i del equipo.
+                coord: i < formation.positions.length
+                    ? formation.positions[i]
+                    : const Offset(0.5, 0.5), // red de seguridad: al centro
+                teamColor: teamColor,
+                mirror: mirror,
+              ),
+          ],
+        ),
+      ),
     );
   }
 
