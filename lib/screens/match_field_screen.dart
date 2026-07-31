@@ -8,6 +8,10 @@ import '../theme/app_theme.dart';
 import '../widgets/player_avatar.dart';
 import 'match_score_screen.dart';
 
+// Resultado del diálogo de cambio de formación cuando hay jugadores colocados:
+// mantenerlos en la nueva formación o vaciar el equipo.
+enum _FormationChangeChoice { keep, reset }
+
 class MatchFieldScreen extends StatefulWidget {
   final Match match;
   final Membership currentMembership;
@@ -41,6 +45,28 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
     'Delantero',
   ];
 
+  // Colores de equipo (algo apagados para que peguen con la crema). Se usan
+  // tanto en las burbujas del campo como en las pestañas, para que el mapeo
+  // color -> equipo sea consistente en toda la pantalla.
+  static const Color _teamRed = Color(0xFFD32F2F);
+  static const Color _teamBlue = Color(0xFF1976D2);
+
+  // Meses en español para el diálogo de información (sin depender de intl).
+  static const List<String> _monthNames = [
+    'enero',
+    'febrero',
+    'marzo',
+    'abril',
+    'mayo',
+    'junio',
+    'julio',
+    'agosto',
+    'septiembre',
+    'octubre',
+    'noviembre',
+    'diciembre',
+  ];
+
   bool get _isCaptain => widget.currentMembership.role == 'captain';
 
   // Equipo de la tab activa (para el selector de formación del capitán)
@@ -56,7 +82,8 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    // Repinta la AppBar al cambiar de tab (el botón muestra la formación activa)
+    // Repinta la AppBar al cambiar de tab (el botón de formación y el color de
+    // las pestañas dependen del equipo activo).
     _tabController.addListener(() {
       if (mounted) setState(() {});
     });
@@ -225,73 +252,55 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
     );
   }
 
-  // El capitán elige formación para el equipo de la tab activa.
-  // Si hay jugadores colocados en ese equipo, avisa: cambiarla los quita.
-  Future<void> _askFormation() async {
+  // El capitán elige una formación desde el desplegable del AppBar. Si el
+  // equipo activo tiene jugadores colocados, pregunta si mantenerlos en la
+  // nueva formación (se recolocan) o vaciar el equipo.
+  Future<void> _onFormationSelected(String selected) async {
     final team = _activeTeam;
     final currentName = _activeFormationName;
-    final formations = formationsByType[_match.type] ?? [];
 
-    final selected = await showModalBottomSheet<String>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                'Formación del equipo $_activeTeamLabel',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            ...formations.map(
-              (f) => ListTile(
-                title: Text(f.name),
-                trailing: f.name == currentName
-                    ? const Icon(Icons.check, color: Colors.green)
-                    : null,
-                onTap: () => Navigator.of(context).pop(f.name),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    // Canceló, o eligió la que ya estaba: nada que hacer.
-    if (selected == null || selected == currentName) return;
+    // Eligió la que ya estaba: nada que hacer.
+    if (selected == currentName) return;
 
     // ¿Cuántos jugadores colocados tiene ESTE equipo? (el otro no se toca)
     final occupied = _match.slots
         .where((s) => s.team == team && s.playerId != null)
         .length;
 
+    // Equipo vacío: no hay a quién mantener, cambiamos directamente.
+    bool keepPlayers = false;
+
     if (occupied > 0) {
-      final confirm = await showDialog<bool>(
+      final choice = await showDialog<_FormationChangeChoice>(
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('Cambiar formación'),
           content: Text(
-            'Cambiar la formación quitará a los $occupied jugadores '
-            'colocados del equipo $_activeTeamLabel. ¿Continuar?',
+            'El equipo $_activeTeamLabel tiene $occupied jugadores colocados. '
+            '¿Quieres mantenerlos en la nueva formación o vaciar el equipo?',
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
+              onPressed: () => Navigator.of(context).pop(),
               child: const Text('Cancelar'),
             ),
             TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Cambiar'),
+              onPressed: () =>
+                  Navigator.of(context).pop(_FormationChangeChoice.reset),
+              child: const Text('Vaciar'),
+            ),
+            TextButton(
+              onPressed: () =>
+                  Navigator.of(context).pop(_FormationChangeChoice.keep),
+              child: const Text('Mantener'),
             ),
           ],
         ),
       );
-      if (confirm != true) return;
+
+      // Cerró sin elegir (Cancelar o toque fuera): no hacemos nada.
+      if (choice == null) return;
+      keepPlayers = choice == _FormationChangeChoice.keep;
     }
 
     setState(() => _isSaving = true);
@@ -299,10 +308,62 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
       matchId: _match.matchId,
       team: team,
       formation: selected,
+      keepPlayers: keepPlayers,
     );
     await _reloadMatch();
     if (mounted) setState(() => _isSaving = false);
   }
+
+  // Diálogo centrado con la información del partido (fecha, hora y lugar).
+  // Disponible para todos: no roba espacio al campo, está a un toque.
+  Future<void> _showMatchInfo() {
+    return showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Información del partido'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _infoRow(Icons.event, _formatDate(_match.scheduledAt)),
+            _infoRow(Icons.schedule, _formatTime(_match.scheduledAt)),
+            _infoRow(
+              Icons.place,
+              _match.location.trim().isEmpty
+                  ? 'Sin lugar indicado'
+                  : _match.location,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Fila icono + texto para el diálogo de información.
+  Widget _infoRow(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: AppTheme.kGreen),
+          const SizedBox(width: 12),
+          Expanded(child: Text(text)),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime d) =>
+      '${d.day} de ${_monthNames[d.month - 1]} de ${d.year}';
+
+  String _formatTime(DateTime d) =>
+      '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
   Future<bool?> _confirmLeave() {
     return showDialog<bool>(
@@ -428,20 +489,77 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Color del equipo activo (para el subrayado y el label de las pestañas).
+    final activeColor = _activeTeam == Match.teamA ? _teamRed : _teamBlue;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(_match.type),
         actions: [
-          // Selector de formación del equipo activo (solo capitán, solo scheduled)
+          // Selector de formación del equipo activo (solo capitán, solo
+          // scheduled). Desplegable anclado aquí mismo: al tocar, la lista
+          // de formaciones cae justo debajo del botón.
           if (_isCaptain && _match.status == 'scheduled')
-            TextButton.icon(
-              onPressed: _askFormation,
-              icon: Text(
-                getFormation(_match.type, _activeFormationName).name,
-                style: const TextStyle(fontWeight: FontWeight.bold),
+            PopupMenuButton<String>(
+              tooltip: 'Cambiar formación',
+              onSelected: _onFormationSelected,
+              itemBuilder: (context) {
+                final formations = formationsByType[_match.type] ?? [];
+                final current = _activeFormationName;
+                return formations
+                    .map(
+                      (f) => PopupMenuItem<String>(
+                        value: f.name,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                f.name,
+                                style: TextStyle(
+                                  fontWeight: f.name == current
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                  color: f.name == current
+                                      ? AppTheme.kGreen
+                                      : AppTheme.kInk,
+                                ),
+                              ),
+                            ),
+                            if (f.name == current)
+                              const Icon(
+                                Icons.check,
+                                color: AppTheme.kGreen,
+                                size: 18,
+                              ),
+                          ],
+                        ),
+                      ),
+                    )
+                    .toList();
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      getFormation(_match.type, _activeFormationName).name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.kGreen,
+                      ),
+                    ),
+                    const Icon(Icons.arrow_drop_down, color: AppTheme.kGreen),
+                  ],
+                ),
               ),
-              label: const Icon(Icons.arrow_drop_down),
             ),
+          // Información del partido (fecha, hora, lugar). Para todos.
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            tooltip: 'Información del partido',
+            onPressed: _showMatchInfo,
+          ),
           if (_isCaptain)
             IconButton(
               icon: const Icon(Icons.cleaning_services),
@@ -451,9 +569,14 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
         ],
         bottom: TabBar(
           controller: _tabController,
-          tabs: const [
-            Tab(text: 'Equipo Rojo'),
-            Tab(text: 'Equipo Azul'),
+          // El subrayado toma el color del equipo activo: refuerza el mapeo
+          // color -> equipo.
+          indicatorColor: activeColor,
+          labelColor: activeColor,
+          unselectedLabelColor: AppTheme.kInkSoft,
+          tabs: [
+            _buildTeamTab('Equipo Rojo', _teamRed),
+            _buildTeamTab('Equipo Azul', _teamBlue),
           ],
         ),
       ),
@@ -466,9 +589,9 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
                   controller: _tabController,
                   children: [
                     // Rojo (A) defiende la portería de arriba: espejo.
-                    _buildTeamField(Match.teamA, Colors.red, mirror: true),
+                    _buildTeamField(Match.teamA, _teamRed, mirror: true),
                     // Azul (B) defiende abajo: coordenadas tal cual.
-                    _buildTeamField(Match.teamB, Colors.blue, mirror: false),
+                    _buildTeamField(Match.teamB, _teamBlue, mirror: false),
                   ],
                 ),
                 if (_isSaving)
@@ -492,6 +615,26 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
                 ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  // Pestaña de equipo: puntito de color (siempre visible, no depende del
+  // estado activo) + etiqueta. El puntito es una ayuda de accesibilidad: el
+  // equipo se distingue aunque no se perciba bien el color del texto.
+  Widget _buildTeamTab(String label, Color color) {
+    return Tab(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 8),
+          Text(label),
         ],
       ),
     );
@@ -592,10 +735,12 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
     // AspectRatio fuerza la proporción del SVG (680x1050): el campo se ve
     // ENTERO, centrado, sin que BoxFit.cover lo agrande y lo recorte por los
     // lados. Con la proporción ya fijada, BoxFit.fill no deforma. El fondo
-    // verde oscuro cubre las bandas que sobren (el "fuera de campo").
+    // crema cubre las bandas que sobren (el "fuera de campo"), para integrarse
+    // con el resto de la app. Un poco de padding da aire entre campo y bordes.
     return Container(
-      color: const Color(0xFF1B5E20),
+      color: AppTheme.kCream,
       alignment: Alignment.center,
+      padding: const EdgeInsets.all(8),
       child: AspectRatio(
         aspectRatio: 680 / 1050,
         child: Stack(
@@ -620,6 +765,12 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
 
   // Convierte la coordenada relativa (0..1) en un Alignment (-1..1),
   // aplicando el espejo vertical si el equipo defiende la portería de arriba.
+  //
+  // Usa AnimatedAlign (no Align) para que, al cambiar de formación, la burbuja
+  // se DESLICE a su nueva posición en vez de reaparecer de golpe. La animación
+  // solo ocurre si Flutter reutiliza el mismo elemento entre reconstrucciones;
+  // la ValueKey por slot lo garantiza (el número y orden de slots no cambian al
+  // cambiar de formación, así que cada burbuja conserva su identidad).
   Widget _buildPositionedBubble({
     required int slotIndex,
     required Offset coord,
@@ -627,7 +778,10 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
     required bool mirror,
   }) {
     final dy = mirror ? 1 - coord.dy : coord.dy;
-    return Align(
+    return AnimatedAlign(
+      key: ValueKey('bubble_$slotIndex'),
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeInOut,
       alignment: Alignment(coord.dx * 2 - 1, dy * 2 - 1),
       child: _buildBubble(slotIndex, teamColor),
     );
@@ -675,17 +829,40 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
                     ),
                   ),
                 ),
-          const SizedBox(height: 4),
-          if (isOccupied)
-            Text(
-              slot.playerName!,
-              style: const TextStyle(color: Colors.white, fontSize: 12),
+          // Etiqueta en cápsula tinta semitransparente: legible sobre el verde
+          // del césped o sobre la crema del "fuera de campo", sin depender del
+          // fondo. Nombre arriba, posición debajo (más apagada).
+          if (isOccupied) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppTheme.kInk.withOpacity(0.75),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    slot.playerName!,
+                    style: const TextStyle(
+                      color: AppTheme.kCream,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (slot.position.isNotEmpty)
+                    Text(
+                      slot.position,
+                      style: TextStyle(
+                        color: AppTheme.kCream.withOpacity(0.7),
+                        fontSize: 10,
+                      ),
+                    ),
+                ],
+              ),
             ),
-          if (isOccupied && slot.position.isNotEmpty)
-            Text(
-              slot.position,
-              style: const TextStyle(color: Colors.white70, fontSize: 10),
-            ),
+          ],
         ],
       ),
     );

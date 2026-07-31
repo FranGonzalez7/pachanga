@@ -319,15 +319,24 @@ class FirestoreService {
     });
   }
 
-  // Cambia la formación de un equipo y vacía los slots de ESE equipo,
-  // en una sola escritura: nunca queda un estado intermedio con la
-  // formación nueva y los jugadores aún colocados en la vieja.
-  // Solo permitido en partidos scheduled (red de seguridad; la interfaz
-  // ya limita el botón, pero el servicio no se fía).
+  // Cambia la formación de un equipo. Dos modos según keepPlayers:
+  //
+  // - keepPlayers = false (por defecto): vacía los slots de ESE equipo, en la
+  //   misma escritura que cambia la formación. Nunca queda un estado intermedio
+  //   con la formación nueva y los jugadores aún en la vieja.
+  //
+  // - keepPlayers = true: solo cambia el nombre de la formación. Los slots ya
+  //   van en orden (portero primero, etc.), así que cada jugador conserva su
+  //   slot y el render lo recoloca en la coordenada de la nueva formación. Su
+  //   etiqueta de posición (la que cuenta para la puntuación) se respeta.
+  //
+  // El otro equipo nunca se toca. Solo permitido en partidos scheduled (red de
+  // seguridad; la interfaz ya limita el botón, pero el servicio no se fía).
   Future<void> setTeamFormation({
     required String matchId,
     required String team, // Match.teamA o Match.teamB
     required String formation,
+    bool keepPlayers = false,
   }) async {
     final matchRef = _db.collection('matches').doc(matchId);
     final doc = await matchRef.get();
@@ -341,16 +350,22 @@ class FirestoreService {
       );
     }
 
-    // Vaciamos solo los huecos del equipo afectado; el otro ni se entera.
+    // El nombre del campo depende del equipo.
+    final formationField = team == Match.teamA ? 'formationA' : 'formationB';
+
+    // Mantener: solo cambiamos la formación, los jugadores se quedan.
+    if (keepPlayers) {
+      await matchRef.update({formationField: formation});
+      return;
+    }
+
+    // Vaciar: quitamos los huecos del equipo afectado; el otro ni se entera.
     final updatedSlots = match.slots.map((slot) {
       if (slot.team == team) {
         return slot.copyWith(clearPlayer: true, position: '');
       }
       return slot;
     }).toList();
-
-    // El nombre del campo depende del equipo.
-    final formationField = team == Match.teamA ? 'formationA' : 'formationB';
 
     await matchRef.update({
       formationField: formation,
