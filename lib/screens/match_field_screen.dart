@@ -51,6 +51,12 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
   static const Color _teamRed = Color(0xFFD32F2F);
   static const Color _teamBlue = Color(0xFF1976D2);
 
+  // Tamaño del círculo de burbuja (avatar + borde) y separación con su
+  // etiqueta. En una sola constante para que el círculo, su footprint y el
+  // hueco vacío no se desincronicen nunca al ajustarlos.
+  static const double _bubbleSize = 78;
+  static const double _labelGap = 3;
+
   // Meses en español para el diálogo de información (sin depender de intl).
   static const List<String> _monthNames = [
     'enero',
@@ -783,87 +789,121 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
       duration: const Duration(milliseconds: 400),
       curve: Curves.easeInOut,
       alignment: Alignment(coord.dx * 2 - 1, dy * 2 - 1),
-      child: _buildBubble(slotIndex, teamColor),
+      // La etiqueta va SIEMPRE hacia el centro del campo: debajo en el equipo
+      // de arriba (espejado), encima en el de abajo. Así el portero, pegado a
+      // su portería, nunca empuja la etiqueta fuera del campo.
+      child: _buildBubble(slotIndex, teamColor, labelAbove: !mirror),
     );
   }
 
-  Widget _buildBubble(int slotIndex, Color teamColor) {
+  Widget _buildBubble(
+    int slotIndex,
+    Color teamColor, {
+    required bool labelAbove,
+  }) {
     final slot = _match.slots[slotIndex];
     final isOccupied = slot.playerId != null;
 
+    // El círculo: avatar (foto o inicial) o el "+" de hueco vacío. Mide
+    // _bubbleSize x _bubbleSize (borde 3 incluido).
+    final Widget circle = isOccupied
+        ? PlayerAvatar(
+            photoUrl: slot.photoUrl,
+            name: slot.playerName ?? '?',
+            size: _bubbleSize - 6, // resto el borde (3 a cada lado)
+            borderColor: teamColor,
+            borderWidth: 3,
+            // Placeholder sin foto: fondo del color de equipo, inicial
+            // blanca, como era la burbuja rellena de antes.
+            backgroundColor: teamColor,
+            initialColor: Colors.white,
+          )
+        : Container(
+            width: _bubbleSize,
+            height: _bubbleSize,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white24,
+              border: Border.all(color: teamColor, width: 3),
+            ),
+            child: const Center(
+              child: Text(
+                '+',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 22,
+                ),
+              ),
+            ),
+          );
+
     return GestureDetector(
       onTap: () => _onBubbleTap(slotIndex),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Vacío: círculo semitransparente con "+". Ocupado: PlayerAvatar
-          // (foto o inicial) con el borde del color del equipo.
-          isOccupied
-              ? PlayerAvatar(
-                  photoUrl: slot.photoUrl,
-                  name: slot.playerName ?? '?',
-                  size: 70, // 76 total con el borde de 3
-                  borderColor: teamColor,
-                  borderWidth: 3,
-                  // Placeholder sin foto: fondo del color de equipo, inicial
-                  // blanca, como era la burbuja rellena de antes.
-                  backgroundColor: teamColor,
-                  initialColor: Colors.white,
-                )
-              : Container(
-                  width: 76,
-                  height: 76,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white24,
-                    border: Border.all(color: teamColor, width: 3),
-                  ),
-                  child: const Center(
-                    child: Text(
-                      '+',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 22,
-                      ),
+      // Footprint FIJO del tamaño del círculo: solo el círculo. El Align
+      // (arriba) centra este cuadro sobre la coordenada, así que el círculo
+      // queda SIEMPRE en su sitio, tenga etiqueta o no (antes la etiqueta
+      // crecía la columna y subía el círculo, desalineando la fila). La
+      // etiqueta se dibuja como overlay que rebosa fuera del cuadro
+      // (Clip.none) sin empujar nada.
+      child: SizedBox(
+        width: _bubbleSize,
+        height: _bubbleSize,
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.center,
+          children: [
+            circle,
+            if (isOccupied)
+              Positioned(
+                // Márgenes laterales generosos + Center: la cápsula queda
+                // centrada sobre el círculo sea cual sea el ancho del nombre.
+                left: -80,
+                right: -80,
+                // Encima o debajo del círculo, separada _labelGap px, según
+                // labelAbove. Solo se fija uno de los dos bordes.
+                top: labelAbove ? null : _bubbleSize + _labelGap,
+                bottom: labelAbove ? _bubbleSize + _labelGap : null,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      // Cápsula tinta semitransparente: legible sobre césped o
+                      // crema, sin depender del fondo.
+                      color: AppTheme.kInk.withOpacity(0.65),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          slot.playerName!,
+                          style: const TextStyle(
+                            color: AppTheme.kCream,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            height: 1.1,
+                          ),
+                        ),
+                        if (slot.position.isNotEmpty)
+                          Text(
+                            slot.position,
+                            style: TextStyle(
+                              color: AppTheme.kCream.withOpacity(0.7),
+                              fontSize: 10,
+                              height: 1.1,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ),
-          // Etiqueta en cápsula tinta semitransparente: legible sobre el verde
-          // del césped o sobre la crema del "fuera de campo", sin depender del
-          // fondo. Nombre arriba, posición debajo (más apagada).
-          if (isOccupied) ...[
-            const SizedBox(height: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: AppTheme.kInk.withOpacity(0.75),
-                borderRadius: BorderRadius.circular(10),
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    slot.playerName!,
-                    style: const TextStyle(
-                      color: AppTheme.kCream,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  if (slot.position.isNotEmpty)
-                    Text(
-                      slot.position,
-                      style: TextStyle(
-                        color: AppTheme.kCream.withOpacity(0.7),
-                        fontSize: 10,
-                      ),
-                    ),
-                ],
-              ),
-            ),
           ],
-        ],
+        ),
       ),
     );
   }
