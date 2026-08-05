@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../services/auth_service.dart';
-import '../theme/app_theme.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -92,8 +91,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Sin AppBar: el contenido protagonista es el título + logo. SafeArea
-    // evita que trepe hasta la barra de estado del móvil (hora, batería).
+    // Sin AppBar: el contenido protagonista es el logo. SafeArea evita que
+    // trepe hasta la barra de estado del móvil (hora, batería).
     return Scaffold(
       body: SafeArea(
         // LayoutBuilder nos da la altura disponible. Con ConstrainedBox +
@@ -113,23 +112,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     children: [
                       const Spacer(),
 
-                      // --- Cabecera: título arriba, logo debajo ---
-                      Text(
-                        'Pachanga',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.poppins(
-                          fontSize: 40,
-                          fontWeight: FontWeight.w700,
-                          color: AppTheme.kGreen,
-                        ),
+                      // --- Logo (ya incluye el nombre "Pachanga") ---
+                      Center(
+                        child: SvgPicture.asset('assets/logo.svg', width: 280),
                       ),
-                      const SizedBox(height: 12),
-                      Icon(
-                        Icons.sports_soccer,
-                        size: 100,
-                        color: AppTheme.kGreen,
-                      ),
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 28),
 
                       // --- Formulario ---
                       // El campo Nombre aparece/desaparece con una transición
