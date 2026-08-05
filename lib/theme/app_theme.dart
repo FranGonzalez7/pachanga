@@ -25,6 +25,14 @@ class AppTheme {
   static const Color kInk = Color(0xFF2E2A24); // "tinta": texto, marrón oscuro
   static const Color kInkSoft = Color(0xFF7A7566); // texto secundario, apagado
 
+  // --- Métricas compartidas ---------------------------------------------
+  // Altura de la cenefa de césped: proporción real del asset recortado
+  // (1024x114) al ancho de pantalla, para que las hojas no se deformen.
+  // Fuente ÚNICA de verdad: la MainScreen la usa para PINTAR el césped y las
+  // pantallas para dejar hueco inferior y que nada quede pisado por él.
+  static double grassStripHeight(BuildContext context) =>
+      MediaQuery.of(context).size.width * 114 / 1024;
+
   // --- ColorScheme ------------------------------------------------------
   // Partimos de fromSeed (deriva ~30 colores coherentes del verde) y
   // sobrescribimos solo los roles que queremos controlar a mano. El resto

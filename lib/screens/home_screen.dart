@@ -145,7 +145,14 @@ class _HomeScreenState extends State<HomeScreen> {
           // no cabe (tres bloques + saludo pueden pasarse en pantallas
           // pequeñas). Adiós a los Expanded, que no conviven con el scroll.
           body: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
+            // 24 alrededor; abajo sumamos la cenefa para que la última línea
+            // de la clasificación no quede pisada.
+            padding: EdgeInsets.only(
+              left: 24,
+              top: 24,
+              right: 24,
+              bottom: 24 + AppTheme.grassStripHeight(context),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

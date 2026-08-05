@@ -8,6 +8,7 @@ import 'match_field_screen.dart';
 import 'match_score_screen.dart';
 import '../widgets/status_chip.dart';
 import '../widgets/app_bar_title.dart';
+import '../theme/app_theme.dart';
 
 class MatchesScreen extends StatefulWidget {
   const MatchesScreen({super.key});
@@ -189,10 +190,16 @@ class _MatchesScreenState extends State<MatchesScreen> {
           },
         ),
         floatingActionButton: _isCaptain
-            ? FloatingActionButton.extended(
-                onPressed: _openCreateMatch,
-                icon: const Icon(Icons.add),
-                label: const Text('Crear partido'),
+            ? Padding(
+                // Subimos el FAB por encima de la cenefa de césped.
+                padding: EdgeInsets.only(
+                  bottom: AppTheme.grassStripHeight(context),
+                ),
+                child: FloatingActionButton.extended(
+                  onPressed: _openCreateMatch,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Crear partido'),
+                ),
               )
             : null,
       ),
@@ -204,7 +211,9 @@ class _MatchesScreenState extends State<MatchesScreen> {
       return Center(child: Text(emptyMessage));
     }
     return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 88),
+      // 88 despeja el FAB; + la cenefa para que el último partido no quede
+      // pisado. La lista pasa por detrás del césped al hacer scroll.
+      padding: EdgeInsets.only(bottom: 88 + AppTheme.grassStripHeight(context)),
       itemCount: matches.length,
       itemBuilder: (context, index) {
         final match = matches[index];

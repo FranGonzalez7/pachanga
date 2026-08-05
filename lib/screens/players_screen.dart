@@ -194,7 +194,11 @@ class _PlayersScreenState extends State<PlayersScreen> {
           final players = _sortedPlayers(snapshot.data!);
 
           return ListView.builder(
-            padding: const EdgeInsets.only(bottom: 88),
+            // 88 despeja el FAB; + la cenefa para que el último jugador no
+            // quede pisado. La lista pasa por detrás al scrollear.
+            padding: EdgeInsets.only(
+              bottom: 88 + AppTheme.grassStripHeight(context),
+            ),
             itemCount: players.length,
             itemBuilder: (context, index) {
               final player = players[index];
@@ -251,10 +255,16 @@ class _PlayersScreenState extends State<PlayersScreen> {
         },
       ),
       floatingActionButton: _isCaptain
-          ? FloatingActionButton.extended(
-              onPressed: _openCreateGhost,
-              icon: const Icon(Icons.person_add),
-              label: const Text('Añadir jugador'),
+          ? Padding(
+              // Subimos el FAB por encima de la cenefa de césped.
+              padding: EdgeInsets.only(
+                bottom: AppTheme.grassStripHeight(context),
+              ),
+              child: FloatingActionButton.extended(
+                onPressed: _openCreateGhost,
+                icon: const Icon(Icons.person_add),
+                label: const Text('Añadir jugador'),
+              ),
             )
           : null,
     );

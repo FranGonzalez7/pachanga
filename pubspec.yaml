@@ -65,7 +65,8 @@ flutter:
   uses-material-design: true
   assets:
     - assets/field.svg
-    - assets/logo.png
+    - assets/logo.svg
+    - assets/grass_strip.svg
     - assets/icons/
 
   # To add assets to your application, add an assets section, like this:
