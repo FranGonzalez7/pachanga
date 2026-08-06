@@ -154,9 +154,14 @@ class _PlayerCardDialogState extends State<PlayerCardDialog> {
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(vertical: 40),
       child: SizedBox(
-        height: 640,
+        // Altura ajustada al cromo (520) + holgura para su sombra. Sin la
+        // banda externa de antes: así casi no queda zona transparente que no
+        // cierre el diálogo al tocarla.
+        height: 560,
         child: PageView.builder(
           controller: _pageController,
+          // Clip.none: la sombra del cromo (que sobresale abajo) no se recorta.
+          clipBehavior: Clip.none,
           itemCount: widget.players.length,
           itemBuilder: (context, index) {
             final player = widget.players[index];
@@ -180,8 +185,8 @@ class _PlayerCardDialogState extends State<PlayerCardDialog> {
 }
 
 // Una carta individual, estilo cromo de fútbol. Marco ámbar si es el propio
-// jugador ("cromo dorado"), verde para el resto. Las acciones del capitán
-// van fuera del cromo, debajo, para no ensuciar el diseño.
+// jugador ("cromo dorado"), verde para el resto. Las acciones del capitán van
+// superpuestas dentro del cromo, abajo a la derecha.
 class _PlayerCard extends StatelessWidget {
   final Membership player;
   final bool isMe;
@@ -217,7 +222,6 @@ class _PlayerCard extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // --- El cromo (altura fija: no cambia haya botones o no) ---
           SizedBox(
             height: _cardHeight,
             child: Container(
@@ -248,36 +252,6 @@ class _PlayerCard extends StatelessWidget {
               ),
             ),
           ),
-
-          // --- Acciones del capitán, fuera del cromo (altura reservada
-          //     siempre, para que el cromo no se desplace tenga o no botones).
-          //     Solo icono, pegadas a la derecha. ---
-          SizedBox(
-            height: 52,
-            child: (canEdit || canDelete)
-                ? Padding(
-                    padding: const EdgeInsets.only(right: 12),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        if (canEdit)
-                          _actionPill(
-                            icon: Icons.edit_outlined,
-                            color: AppTheme.kInkSoft,
-                            onTap: onEdit,
-                          ),
-                        if (canEdit && canDelete) const SizedBox(width: 8),
-                        if (canDelete)
-                          _actionPill(
-                            icon: Icons.delete_outline,
-                            color: Colors.red.shade400,
-                            onTap: onDelete,
-                          ),
-                      ],
-                    ),
-                  )
-                : null,
-          ),
         ],
       ),
     );
@@ -285,7 +259,7 @@ class _PlayerCard extends StatelessWidget {
 
   // Zona superior: foto grande a la izquierda (rectangular, dos esquinas
   // redondeadas siguiendo la curva del marco) y el número de puntos a la
-  // derecha, con la insignia de rol. La foto va despegada del marco (_photoInset).
+  // derecha. La insignia de rol va superpuesta en la esquina superior de la foto.
   Widget _buildTopZone() {
     // Radio de la foto = radio del marco - hueco => curvas concéntricas.
     final photoCorner = _frameRadius - _photoInset;
@@ -295,27 +269,38 @@ class _PlayerCard extends StatelessWidget {
       child: Stack(
         children: [
           // Foto despegada del marco por arriba y por la izquierda (_photoInset).
+          // Va en su propio Stack para superponerle la insignia de rol.
           Positioned(
             top: _photoInset,
             left: _photoInset,
-            child: ClipRRect(
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(photoCorner),
-                bottomRight: const Radius.circular(55),
-              ),
-              child: SizedBox(
-                width: 224,
-                height: 262,
-                // PlayerAvatar en modo "desnudo" (sin borde): aquí la forma
-                // la da el ClipRRect, no el widget.
-                child: PlayerAvatar(
-                  photoUrl: player.photoUrl,
-                  name: player.displayName,
-                  size: 262,
-                  backgroundColor: AppTheme.kGreen,
-                  initialColor: Colors.white,
-                  fontSize: 88,
-                ),
+            child: SizedBox(
+              width: 224,
+              height: 262,
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(photoCorner),
+                      bottomRight: const Radius.circular(55),
+                    ),
+                    child: SizedBox(
+                      width: 224,
+                      height: 262,
+                      // PlayerAvatar en modo "desnudo" (sin borde): aquí la
+                      // forma la da el ClipRRect, no el widget.
+                      child: PlayerAvatar(
+                        photoUrl: player.photoUrl,
+                        name: player.displayName,
+                        size: 262,
+                        backgroundColor: AppTheme.kGreen,
+                        initialColor: Colors.white,
+                        fontSize: 88,
+                      ),
+                    ),
+                  ),
+                  // Insignia de rol: esquina superior derecha de la foto.
+                  Positioned(top: 10, right: 10, child: _roleBadge()),
+                ],
               ),
             ),
           ),
@@ -348,17 +333,18 @@ class _PlayerCard extends StatelessWidget {
               ],
             ),
           ),
-
-          // Insignia de rol, abajo a la derecha.
-          Positioned(bottom: 14, right: 16, child: _roleBadge()),
         ],
       ),
     );
   }
 
-  // Zona inferior: nombre y posiciones arriba, la rejilla de stats abajo.
-  // spaceBetween empuja las stats hacia el fondo del cromo (menos aire debajo).
+  // Zona inferior: nombre y posiciones arriba; abajo, los botones del capitán
+  // (si los hay) justo encima del divider verde, y la rejilla de stats.
+  // El divider y las stats quedan anclados abajo por igual en TODAS las cartas
+  // (spaceBetween los empuja al fondo); los botones solo "crecen" hacia arriba
+  // por encima del divider cuando existen. Así stats y divider no se mueven.
   Widget _buildBottomZone() {
+    final hasButtons = canEdit || canDelete;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
       child: Column(
@@ -386,6 +372,30 @@ class _PlayerCard extends StatelessWidget {
           ),
           Column(
             children: [
+              // Acciones del capitán: a la derecha, justo encima del divider.
+              // Círculos con borde verde.
+              if (hasButtons)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      if (canEdit)
+                        _actionButton(
+                          icon: Icons.edit_outlined,
+                          color: AppTheme.kInkSoft,
+                          onTap: onEdit,
+                        ),
+                      if (canEdit && canDelete) const SizedBox(width: 10),
+                      if (canDelete)
+                        _actionButton(
+                          icon: Icons.delete_outline,
+                          color: Colors.red.shade400,
+                          onTap: onDelete,
+                        ),
+                    ],
+                  ),
+                ),
               // Divider verde grueso.
               Container(height: 2, color: AppTheme.kGreen),
               const SizedBox(height: 14),
@@ -469,38 +479,42 @@ class _PlayerCard extends StatelessWidget {
   Widget _stat(IconData icon, String label, String value, Color iconColor) {
     return Column(
       children: [
-        Icon(icon, size: 16, color: iconColor),
-        const SizedBox(height: 3),
+        Icon(icon, size: 24, color: iconColor),
+        const SizedBox(height: 4),
         Text(
           value,
           style: const TextStyle(
-            fontSize: 17,
+            fontSize: 22,
             fontWeight: FontWeight.bold,
             color: AppTheme.kInk,
           ),
         ),
         Text(
           label,
-          style: const TextStyle(fontSize: 10, color: AppTheme.kInkSoft),
+          style: const TextStyle(fontSize: 12, color: AppTheme.kInkSoft),
         ),
       ],
     );
   }
 
-  // Botón redondo de acción del capitán, solo icono (fuera del cromo).
-  Widget _actionPill({
+  // Botón redondo de acción del capitán, solo icono, con borde verde.
+  // Superpuesto dentro del cromo.
+  Widget _actionButton({
     required IconData icon,
     required Color color,
     required VoidCallback onTap,
   }) {
     return Material(
       color: AppTheme.kCreamCard,
-      shape: const CircleBorder(),
+      shape: const CircleBorder(
+        side: BorderSide(color: AppTheme.kGreen, width: 2),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         customBorder: const CircleBorder(),
         child: Padding(
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.all(9),
           child: Icon(icon, size: 20, color: color),
         ),
       ),
