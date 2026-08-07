@@ -73,7 +73,9 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
     'diciembre',
   ];
 
-  bool get _isCaptain => widget.currentMembership.role == 'captain';
+  // ¿Puede gestionar? (capitán o co-capitán). El nombre _isCaptain se queda
+  // porque toda la pantalla pregunta por él; su significado ahora es "manda".
+  bool get _isCaptain => widget.currentMembership.canManage;
 
   // Equipo de la tab activa (para el selector de formación del capitán)
   String get _activeTeam =>

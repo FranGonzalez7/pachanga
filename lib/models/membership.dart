@@ -52,6 +52,14 @@ class Membership {
   // pueden; el matiz "solo el capitán" queda para isCaptain.
   bool get canManage => isCaptain || isCoCaptain;
 
+  // Etiqueta del rol para pintar en pantalla. Centralizada aquí: si mañana
+  // cambia un rol o aparece otro, hay UN sitio que tocar, no N pantallas.
+  String get roleLabel {
+    if (isCaptain) return 'Capitán';
+    if (isCoCaptain) return 'Co-capitán';
+    return 'Jugador';
+  }
+
   // De Firestore (Map) a objeto Membership
   factory Membership.fromMap(Map<String, dynamic> data) {
     return Membership(

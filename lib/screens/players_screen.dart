@@ -22,13 +22,15 @@ class _PlayersScreenState extends State<PlayersScreen> {
   final FirestoreService _firestoreService = FirestoreService();
 
   late final String _myUid;
-  Membership? _myMembership; // mi membresía, para saber si soy capitán
+  Membership? _myMembership; // mi membresía, para saber si puedo gestionar
   late Future<List<Membership>> _playersFuture;
 
   // Criterio de orden activo. Por defecto, por puntos.
   PlayerSort _sort = PlayerSort.points;
 
-  bool get _isCaptain => _myMembership?.role == 'captain';
+  // ¿Puedo gestionar el grupo? (capitán O co-capitán: crear fantasmas, abrir
+  // las acciones del cromo...). El matiz "solo el capitán" no se usa aquí.
+  bool get _canManage => _myMembership?.canManage ?? false;
 
   @override
   void initState() {
@@ -202,21 +204,24 @@ class _PlayersScreenState extends State<PlayersScreen> {
             itemCount: players.length,
             itemBuilder: (context, index) {
               final player = players[index];
-              final isCaptain = player.role == 'captain';
               final isMe = player.userId == _myUid;
 
               return Container(
                 // "Esto eres tú": resaltado en ámbar, coherente con el podio.
                 color: isMe ? AppTheme.kAmber.withValues(alpha: 0.15) : null,
                 child: ListTile(
-                  onTap: () => PlayerCardDialog.show(
-                    context,
-                    players: players,
-                    initialIndex: index,
-                    myUserId: _myUid,
-                    viewerIsCaptain: _isCaptain,
-                    onChanged: _refreshPlayers,
-                  ),
+                  onTap: () {
+                    // La lista carga antes que la membresía propia; sin ella
+                    // aún no sabemos qué acciones mostrar en el cromo.
+                    if (_myMembership == null) return;
+                    PlayerCardDialog.show(
+                      context,
+                      players: players,
+                      initialIndex: index,
+                      viewer: _myMembership!,
+                      onChanged: _refreshPlayers,
+                    );
+                  },
                   // Avatar circular con borde verde, 10% mayor que antes.
                   // El borde lo dibuja el propio PlayerAvatar.
                   leading: PlayerAvatar(
@@ -226,7 +231,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
                     borderColor: AppTheme.kGreen,
                   ),
                   title: Text(player.displayName),
-                  subtitle: _buildSubtitle(player, isCaptain),
+                  subtitle: _buildSubtitle(player),
                   trailing: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.end,
@@ -254,7 +259,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
           );
         },
       ),
-      floatingActionButton: _isCaptain
+      floatingActionButton: _canManage
           ? Padding(
               // Subimos el FAB por encima de la cenefa de césped.
               padding: EdgeInsets.only(
@@ -270,18 +275,27 @@ class _PlayersScreenState extends State<PlayersScreen> {
     );
   }
 
-  // Subtítulo de la fila: distingue capitán (con estrella), jugador y fantasma.
-  Widget _buildSubtitle(Membership player, bool isCaptain) {
+  // Subtítulo de la fila: capitán (estrella ámbar), co-capitán (estrella
+  // plata), fantasma o jugador.
+  Widget _buildSubtitle(Membership player) {
     if (player.isGhost) {
       return const Text('Sin cuenta');
     }
-    if (isCaptain) {
-      // "Capitán" con una estrella ámbar detrás.
-      return Row(
+    if (player.isCaptain) {
+      return const Row(
         children: [
-          const Text('Capitán'),
-          const SizedBox(width: 4),
+          Text('Capitán'),
+          SizedBox(width: 4),
           Icon(Icons.star, size: 14, color: AppTheme.kAmber),
+        ],
+      );
+    }
+    if (player.isCoCaptain) {
+      return const Row(
+        children: [
+          Text('Co-capitán'),
+          SizedBox(width: 4),
+          Icon(Icons.star, size: 14, color: AppTheme.kSilver),
         ],
       );
     }

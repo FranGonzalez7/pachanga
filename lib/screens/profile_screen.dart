@@ -211,7 +211,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      membership.role == 'captain' ? 'Capitán' : 'Jugador',
+                      membership.roleLabel,
                       style: const TextStyle(
                         fontSize: 15,
                         color: AppTheme.kInkSoft,

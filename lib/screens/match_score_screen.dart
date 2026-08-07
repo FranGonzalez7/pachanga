@@ -29,12 +29,12 @@ class _MatchScoreScreenState extends State<MatchScoreScreen> {
   // Cuando pasa a 'played', se ocultan los controles de acción.
   bool get _isInProgress => _match.status == 'inProgress';
 
-  // Quien mira es el capitán del grupo.
-  bool get _isCaptain => widget.currentMembership.role == 'captain';
+  // Quien mira puede gestionar (capitán o co-capitán).
+  bool get _canManage => widget.currentMembership.canManage;
 
   // Se pueden tocar los controles solo si el partido está en juego
-  // Y quien mira es el capitán. Un jugador no-capitán solo visualiza.
-  bool get _canEdit => _isInProgress && _isCaptain;
+  // Y quien mira gestiona. Un jugador raso solo visualiza.
+  bool get _canEdit => _isInProgress && _canManage;
 
   // Puntos que saca cada jugador en este partido (delta crudo, puede ser
   // negativo). Solo se usa en modo lectura para mostrar el resultado.

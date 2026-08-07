@@ -24,7 +24,7 @@ class _MatchesScreenState extends State<MatchesScreen> {
   Membership? _membership;
   bool _loadingMembership = true;
 
-  bool get _isCaptain => _membership?.role == 'captain';
+  bool get _isCaptain => _membership?.canManage ?? false;
 
   @override
   void initState() {

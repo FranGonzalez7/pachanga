@@ -122,7 +122,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
         final membership = snapshot.data!.membership;
         final group = snapshot.data!.group;
-        final isCaptain = membership.role == 'captain';
+        final isCaptain = membership.canManage;
 
         return Scaffold(
           appBar: AppBar(

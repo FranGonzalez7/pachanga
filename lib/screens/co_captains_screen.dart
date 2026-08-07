@@ -140,7 +140,7 @@ class _CoCaptainsScreenState extends State<CoCaptainsScreen> {
               children: [
                 Text('Co-capitán'),
                 SizedBox(width: 4),
-                Icon(Icons.star, size: 14, color: Color(0xFFC0C0C0)),
+                Icon(Icons.star, size: 14, color: AppTheme.kSilver),
               ],
             )
           : const Text('Jugador'),

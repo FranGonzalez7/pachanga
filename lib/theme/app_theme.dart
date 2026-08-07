@@ -18,6 +18,7 @@ class AppTheme {
   static const Color kGreen = Color(0xFF2D6A4F); // verde césped, protagonista
   static const Color kGreenDark = Color(0xFF1B4332); // verde para presionados
   static const Color kAmber = Color(0xFFE4A020); // ámbar, acento
+  static const Color kSilver = Color(0xFFC0C0C0);
   static const Color kCream = Color(0xFFF3EAD8); // crema de fondo (tostado)
   static const Color kCreamCard = Color(
     0xFFFBF6EC,

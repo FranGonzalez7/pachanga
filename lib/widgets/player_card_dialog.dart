@@ -8,16 +8,16 @@ import 'player_avatar.dart';
 class PlayerCardDialog extends StatefulWidget {
   final List<Membership> players;
   final int initialIndex;
-  final String myUserId;
-  final bool viewerIsCaptain;
+  // Quien mira: su rol decide qué acciones ve en cada cromo (un bool ya no
+  // basta desde los co-capitanes; las reglas dependen de QUIÉN mira a quién).
+  final Membership viewer;
   final VoidCallback? onChanged;
 
   const PlayerCardDialog({
     super.key,
     required this.players,
     required this.initialIndex,
-    required this.myUserId,
-    required this.viewerIsCaptain,
+    required this.viewer,
     this.onChanged,
   });
 
@@ -25,8 +25,7 @@ class PlayerCardDialog extends StatefulWidget {
     BuildContext context, {
     required List<Membership> players,
     required int initialIndex,
-    required String myUserId,
-    required bool viewerIsCaptain,
+    required Membership viewer,
     VoidCallback? onChanged,
   }) {
     return showDialog(
@@ -34,8 +33,7 @@ class PlayerCardDialog extends StatefulWidget {
       builder: (_) => PlayerCardDialog(
         players: players,
         initialIndex: initialIndex,
-        myUserId: myUserId,
-        viewerIsCaptain: viewerIsCaptain,
+        viewer: viewer,
         onChanged: onChanged,
       ),
     );
@@ -150,6 +148,8 @@ class _PlayerCardDialogState extends State<PlayerCardDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final viewer = widget.viewer;
+
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(vertical: 40),
@@ -165,10 +165,23 @@ class _PlayerCardDialogState extends State<PlayerCardDialog> {
           itemCount: widget.players.length,
           itemBuilder: (context, index) {
             final player = widget.players[index];
-            final isMe = player.userId == widget.myUserId;
-            final canDelete = widget.viewerIsCaptain && !isMe;
-            // Editar nombre: solo el capitán, y solo si es un fantasma.
-            final canEdit = widget.viewerIsCaptain && player.isGhost;
+            final isMe = player.userId == viewer.userId;
+
+            // Reglas de borrado:
+            // - hay que poder gestionar (capitán o co-capitán), y no borrarse
+            //   a uno mismo;
+            // - al CAPITÁN no lo borra nadie, nunca;
+            // - un co-capitán no borra a otro co-capitán (quitar co-capitanes
+            //   es potestad del capitán, y echarlo del grupo lo sería aún más).
+            final canDelete =
+                viewer.canManage &&
+                !isMe &&
+                !player.isCaptain &&
+                !(viewer.isCoCaptain && player.isCoCaptain);
+
+            // Editar nombre: quien gestiona, y solo si es un fantasma.
+            final canEdit = viewer.canManage && player.isGhost;
+
             return _PlayerCard(
               player: player,
               isMe: isMe,
@@ -185,8 +198,8 @@ class _PlayerCardDialogState extends State<PlayerCardDialog> {
 }
 
 // Una carta individual, estilo cromo de fútbol. Marco ámbar si es el propio
-// jugador ("cromo dorado"), verde para el resto. Las acciones del capitán van
-// superpuestas dentro del cromo, abajo a la derecha.
+// jugador ("cromo dorado"), verde para el resto. Las acciones de gestión van
+// dentro del cromo, sobre el divider.
 class _PlayerCard extends StatelessWidget {
   final Membership player;
   final bool isMe;
@@ -338,7 +351,7 @@ class _PlayerCard extends StatelessWidget {
     );
   }
 
-  // Zona inferior: nombre y posiciones arriba; abajo, los botones del capitán
+  // Zona inferior: nombre y posiciones arriba; abajo, los botones de gestión
   // (si los hay) justo encima del divider verde, y la rejilla de stats.
   // El divider y las stats quedan anclados abajo por igual en TODAS las cartas
   // (spaceBetween los empuja al fondo); los botones solo "crecen" hacia arriba
@@ -372,7 +385,7 @@ class _PlayerCard extends StatelessWidget {
           ),
           Column(
             children: [
-              // Acciones del capitán: a la derecha, justo encima del divider.
+              // Acciones de gestión: a la derecha, justo encima del divider.
               // Círculos con borde verde.
               if (hasButtons)
                 Padding(
@@ -435,17 +448,26 @@ class _PlayerCard extends StatelessWidget {
     );
   }
 
-  // Insignia de rol: capitán (con estrella), fantasma o jugador.
+  // Insignia de rol: capitán (ámbar), co-capitán (plata), fantasma (ámbar)
+  // o jugador (sin insignia).
   Widget _roleBadge() {
     late final String label;
     late final IconData? icon;
+    late final Color background;
 
     if (player.isGhost) {
       label = 'SIN CUENTA';
       icon = null;
-    } else if (player.role == 'captain') {
+      background = AppTheme.kAmber;
+    } else if (player.isCaptain) {
       label = 'CAPITÁN';
       icon = Icons.star;
+      background = AppTheme.kAmber;
+    } else if (player.isCoCaptain) {
+      // Plata: el paralelo del oro del capitán, como en el podio.
+      label = 'CO-CAPITÁN';
+      icon = Icons.star;
+      background = AppTheme.kSilver;
     } else {
       return const SizedBox.shrink(); // jugador normal: sin insignia
     }
@@ -453,7 +475,7 @@ class _PlayerCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: AppTheme.kAmber,
+        color: background,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -497,8 +519,7 @@ class _PlayerCard extends StatelessWidget {
     );
   }
 
-  // Botón redondo de acción del capitán, solo icono, con borde verde.
-  // Superpuesto dentro del cromo.
+  // Botón redondo de acción, solo icono, con borde verde. Dentro del cromo.
   Widget _actionButton({
     required IconData icon,
     required Color color,
