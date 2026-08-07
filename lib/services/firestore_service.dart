@@ -542,6 +542,40 @@ class FirestoreService {
     return membership;
   }
 
+  // Cambia el rol de un miembro del grupo: co-capitán o jugador.
+  // Solo cambia ENTRE esos dos; al capitán no se le toca por aquí (red de
+  // seguridad: nunca degradamos al capitán ni ascendemos a nadie a capitán).
+  Future<void> setMemberRole({
+    required String userId,
+    required String groupId,
+    required String role,
+  }) async {
+    // Solo aceptamos los dos roles delegables.
+    if (role != Membership.roleCoCaptain && role != Membership.rolePlayer) {
+      throw Exception('Rol no permitido: $role');
+    }
+
+    final membershipRef = _db
+        .collection('memberships')
+        .doc('${userId}_$groupId');
+
+    final doc = await membershipRef.get();
+    if (!doc.exists) return;
+
+    final member = Membership.fromMap(doc.data()!);
+
+    // Al capitán no se le cambia el rol desde aquí, y un fantasma no puede
+    // ejercer de co-capitán (no tiene cuenta con la que entrar).
+    if (member.isCaptain) {
+      throw Exception('No se puede cambiar el rol del capitán.');
+    }
+    if (member.isGhost && role == Membership.roleCoCaptain) {
+      throw Exception('Un jugador sin cuenta no puede ser co-capitán.');
+    }
+
+    await membershipRef.update({'role': role});
+  }
+
   // Cambia el nombre del usuario CON CUENTA en los tres sitios donde vive:
   // su perfil global (users), su membresía del grupo y el playerName de los
   // slots de todos sus partidos. Todo en un batch atómico: o se aplica todo,

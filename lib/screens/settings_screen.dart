@@ -1,12 +1,40 @@
 import 'package:flutter/material.dart';
+import '../models/membership.dart';
 import '../services/auth_service.dart';
+import '../services/firestore_service.dart';
 import '../theme/app_theme.dart';
+import 'co_captains_screen.dart';
 import 'profile_screen.dart';
 
-class SettingsScreen extends StatelessWidget {
-  SettingsScreen({super.key});
+// Stateful desde el bloque de co-capitanes: Ajustes necesita saber QUIÉN eres
+// (tu membresía) para decidir si muestra la entrada "Nombrar co-capitanes",
+// que es exclusiva del capitán (ni siquiera de los co-capitanes).
+class SettingsScreen extends StatefulWidget {
+  const SettingsScreen({super.key});
 
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
   final AuthService _authService = AuthService();
+  final FirestoreService _firestoreService = FirestoreService();
+
+  Membership? _membership;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMembership();
+  }
+
+  Future<void> _loadMembership() async {
+    final uid = _authService.currentUser!.uid;
+    final membership = await _firestoreService.getUserMembership(uid);
+    if (mounted) {
+      setState(() => _membership = membership);
+    }
+  }
 
   // Cerrar sesión no es destructivo (no se pierde nada), pero está en una
   // lista donde es fácil tocar por error: confirmamos.
@@ -41,6 +69,11 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Solo EL capitán ve la entrada de co-capitanes. Mientras la membresía
+    // carga, _membership es null y la entrada simplemente no está (aparece
+    // al cargar; es un parpadeo mínimo y solo lo nota el capitán).
+    final isCaptain = _membership?.isCaptain ?? false;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Ajustes')),
       body: ListView(
@@ -57,6 +90,26 @@ class SettingsScreen extends StatelessWidget {
               );
             },
           ),
+          if (isCaptain) ...[
+            const Divider(),
+            ListTile(
+              leading: const Icon(
+                Icons.workspace_premium_outlined,
+                color: AppTheme.kGreen,
+              ),
+              title: const Text('Nombrar co-capitanes'),
+              subtitle: const Text('Reparte la gestión del grupo'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        CoCaptainsScreen(captainMembership: _membership!),
+                  ),
+                );
+              },
+            ),
+          ],
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.red),

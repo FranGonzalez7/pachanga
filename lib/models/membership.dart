@@ -34,6 +34,24 @@ class Membership {
     this.photoUrl,
   });
 
+  // --- Roles ------------------------------------------------------------
+  // Valores posibles de 'role'. Centralizados aquí para no repetir strings
+  // mágicos por la app (mismo principio que Match.teamA/teamB).
+  static const String roleCaptain = 'captain';
+  static const String roleCoCaptain = 'coCaptain';
+  static const String rolePlayer = 'player';
+
+  // ¿Es EL capitán del grupo? (el único que puede nombrar co-capitanes)
+  bool get isCaptain => role == roleCaptain;
+
+  // ¿Es co-capitán? (nombrado por el capitán; gestiona, pero no nombra)
+  bool get isCoCaptain => role == roleCoCaptain;
+
+  // ¿Puede gestionar el grupo? La pregunta que hace casi toda la app
+  // (crear partidos, colocar jugadores, puntuar...). Capitán y co-capitán
+  // pueden; el matiz "solo el capitán" queda para isCaptain.
+  bool get canManage => isCaptain || isCoCaptain;
+
   // De Firestore (Map) a objeto Membership
   factory Membership.fromMap(Map<String, dynamic> data) {
     return Membership(
