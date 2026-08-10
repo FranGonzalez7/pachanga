@@ -15,4 +15,16 @@
     <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
         <item name="android:windowBackground">?android:colorBackground</item>
     </style>
+
+    <!-- Tema propio para el recortador uCrop (image_cropper). Hereda de un
+         AppCompat COMPLETO: uCrop infla sus vistas con componentes AppCompat y
+         se cierra (crash en setupViews) si el tema no lo es. Los temas de la
+         app (arriba) heredan de Theme.Light del sistema, que no vale para
+         uCrop; por eso necesita el suyo. Los colores concretos de la barra los
+         sigue mandando el codigo Dart (AndroidUiSettings). Aqui solo dejamos
+         que la barra de estado no tape el contenido. -->
+    <style name="UCropTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:fitsSystemWindows">true</item>
+    </style>
 </resources>

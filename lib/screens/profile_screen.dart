@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/app_user.dart';
 import '../models/group.dart';
@@ -21,6 +22,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final AuthService _authService = AuthService();
   final FirestoreService _firestoreService = FirestoreService();
   final ImagePicker _picker = ImagePicker();
+
+  // Diámetro del avatar de perfil (grande: es el protagonista de la pantalla).
+  static const double _avatarSize = 160;
 
   // No es 'final': tras editar nombre o foto lo reasignamos para recargar.
   late Future<({Membership membership, Group group, AppUser? user})?>
@@ -74,17 +78,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     if (source == null) return; // cerró la hoja sin elegir
 
-    // Pedimos la imagen YA redimensionada y comprimida en la propia
-    // selección: 512px de lado máximo y calidad 70. Un avatar no necesita
-    // más, y así subimos ~50 KB en vez de los 4-8 MB de una foto de móvil.
+    // Acotamos la resolución ANTES de pasarla al recortador: uCrop carga la
+    // imagen entera en memoria y una foto de móvil a resolución completa
+    // (decenas de MP) puede tumbar la app. 1600px es amplio de sobra para
+    // encuadrar con calidad, y el recorte final baja a 512.
     final XFile? picked = await _picker.pickImage(
       source: source,
+      maxWidth: 1600,
+      maxHeight: 1600,
+    );
+    if (picked == null) return; // canceló la cámara/galería
+
+    // Recorte cuadrado 1:1 bloqueado: el avatar siempre se pinta en círculo,
+    // así que un cuadrado encaja perfecto al recortarse en redondo. El propio
+    // recortador entrega la imagen final a 512px y comprimida.
+    final CroppedFile? cropped = await ImageCropper().cropImage(
+      sourcePath: picked.path,
       maxWidth: 512,
       maxHeight: 512,
-      imageQuality: 70,
+      compressFormat: ImageCompressFormat.jpg,
+      compressQuality: 70,
+      aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
+      uiSettings: [
+        // Android (uCrop): tematizado con la paleta de la app.
+        AndroidUiSettings(
+          toolbarTitle: 'Recortar foto',
+          toolbarColor: AppTheme.kGreen,
+          toolbarWidgetColor: AppTheme.kCreamCard,
+          statusBarColor: AppTheme.kGreenDark,
+          backgroundColor: AppTheme.kInk,
+          activeControlsWidgetColor: AppTheme.kGreen,
+          lockAspectRatio: true, // cuadrado fijo, sin desbloquear proporción
+          hideBottomControls: true, // sin ajustes extra: encuadrar y listo
+        ),
+        // iOS (TOCropViewController): cuadrado fijo también.
+        IOSUiSettings(
+          title: 'Recortar foto',
+          aspectRatioLockEnabled: true,
+          resetAspectRatioEnabled: false,
+          aspectRatioPickerButtonHidden: true,
+        ),
+      ],
     );
 
-    if (picked == null) return; // canceló la cámara/galería
+    if (cropped == null) return; // canceló el recorte
 
     setState(() => _uploadingPhoto = true);
 
@@ -92,7 +129,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await _firestoreService.uploadProfilePhoto(
         userId: membership.userId,
         groupId: membership.groupId,
-        imageFile: File(picked.path),
+        imageFile: File(cropped.path),
       );
       _reload(); // recarga para mostrar la foto nueva
     } catch (e) {
@@ -272,8 +309,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return GestureDetector(
       onTap: _uploadingPhoto ? null : () => _pickPhoto(membership),
       child: Container(
-        width: 120,
-        height: 120,
+        width: _avatarSize,
+        height: _avatarSize,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: AppTheme.kCreamCard,
@@ -299,8 +336,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             : (photoUrl == null
                   ? Text(
                       initial,
-                      style: const TextStyle(
-                        fontSize: 48,
+                      style: TextStyle(
+                        fontSize: _avatarSize * 0.4,
                         fontWeight: FontWeight.bold,
                         color: AppTheme.kGreen,
                       ),
