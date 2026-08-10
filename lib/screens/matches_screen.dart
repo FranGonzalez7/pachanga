@@ -152,11 +152,23 @@ class _MatchesScreenState extends State<MatchesScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: const AppBarTitle('Partidos'),
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: 'Próximos'),
-              Tab(text: 'Jugados'),
-            ],
+          shape: const Border(),
+          bottom: PreferredSize(
+            // Alto reservado = línea (1.5) + alto estándar del TabBar (48).
+            preferredSize: const Size.fromHeight(48 + 1.5),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(height: 1.5, color: AppTheme.kGreen),
+                const TabBar(
+                  dividerColor: Colors.transparent,
+                  tabs: [
+                    Tab(text: 'Próximos'),
+                    Tab(text: 'Jugados'),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
         body: StreamBuilder<List<Match>>(

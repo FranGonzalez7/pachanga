@@ -14,7 +14,6 @@ import 'match_score_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
-
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -22,11 +21,9 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final AuthService _authService = AuthService();
   final FirestoreService _firestoreService = FirestoreService();
-
   // No es 'final': al volver del perfil (donde se puede cambiar el nombre)
   // lo reasignamos para que el Home muestre los datos actualizados.
   late Future<({Membership membership, Group group})?> _dataFuture;
-
   @override
   void initState() {
     super.initState();
@@ -113,17 +110,14 @@ class _HomeScreenState extends State<HomeScreen> {
             body: Center(child: CircularProgressIndicator()),
           );
         }
-
         if (!snapshot.hasData || snapshot.data == null) {
           return const Scaffold(
             body: Center(child: Text('No se pudieron cargar los datos.')),
           );
         }
-
         final membership = snapshot.data!.membership;
         final group = snapshot.data!.group;
         final isCaptain = membership.canManage;
-
         return Scaffold(
           appBar: AppBar(
             title: const AppBarTitle('Pachanga'),
@@ -169,11 +163,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 const SizedBox(height: 28),
-
                 // --- Bloque "tú": stats personales (con avatar superpuesto) ---
                 _buildStatsBlock(membership, group.groupId),
                 const SizedBox(height: 20),
-
                 // --- Bloque próximo partido ---
                 _buildSectionCard(
                   title: 'Próximo partido',
@@ -184,7 +176,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-
                 // --- Bloque "el grupo": top 3 ---
                 _buildSectionCard(
                   title: 'Clasificación',
@@ -211,7 +202,6 @@ class _HomeScreenState extends State<HomeScreen> {
     // el color de la misma fuente que el fondo, el parche es invisible y se
     // adapta solo al tema (modo oscuro incluido).
     final surface = Theme.of(context).colorScheme.surface;
-
     return Stack(
       clipBehavior: Clip.none, // deja que el título asome fuera de la Card
       children: [
@@ -259,7 +249,6 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Center(child: CircularProgressIndicator()),
           );
         }
-
         final allMatches = matchSnap.data ?? [];
         // Próximo = primer partido PROGRAMADO cuyo día no haya pasado.
         // Los caducados siguen en la lista de Partidos (los limpia el capitán),
@@ -267,11 +256,9 @@ class _HomeScreenState extends State<HomeScreen> {
         final scheduled = allMatches
             .where((m) => m.status == 'scheduled' && !m.isPast)
             .toList();
-
         if (scheduled.isEmpty) {
           return _buildEmptyState(isCaptain);
         }
-
         return _buildNextMatchContent(scheduled.first, membership);
       },
     );
@@ -352,14 +339,34 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
-        Divider(height: 28, color: AppTheme.kGreen.withValues(alpha: 0.25)),
+        Divider(height: 28, color: AppTheme.kGreen.withValues(alpha: 0.35)),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _statItem(Icons.stadium, 'Jugados', '${membership.matchesPlayed}'),
-            _statItem(Icons.military_tech, 'Ganados', '${membership.wins}'),
-            _statItem(Icons.close, 'Perdidos', '${membership.losses}'),
-            _statItem(Icons.sports_soccer, 'Goles', '${membership.goals}'),
+            _statItem(
+              Icons.stadium,
+              'Jugados',
+              '${membership.matchesPlayed}',
+              AppTheme.kInkSoft,
+            ),
+            _statItem(
+              Icons.military_tech,
+              'Ganados',
+              '${membership.wins}',
+              AppTheme.kAmber,
+            ),
+            _statItem(
+              Icons.close,
+              'Perdidos',
+              '${membership.losses}',
+              AppTheme.kBrick,
+            ),
+            _statItem(
+              Icons.sports_soccer,
+              'Goles',
+              '${membership.goals}',
+              AppTheme.kGreen,
+            ),
           ],
         ),
       ],
@@ -416,11 +423,23 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _statItem(IconData icon, String label, String value) {
+  // Una celda de estadística: icono en un círculo tintado de su color (a baja
+  // opacidad), con el número y la etiqueta debajo. El color por métrica da
+  // lectura de un vistazo (ámbar=ganados, teja=perdidos, verde=goles).
+  Widget _statItem(IconData icon, String label, String value, Color color) {
     return Column(
       children: [
-        Icon(icon, size: 20, color: AppTheme.kInkSoft),
-        const SizedBox(height: 4),
+        Container(
+          width: 42,
+          height: 42,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: color.withValues(alpha: 0.15),
+          ),
+          child: Icon(icon, size: 22, color: color),
+        ),
+        const SizedBox(height: 6),
         Text(
           value,
           style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
@@ -445,14 +464,11 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Center(child: CircularProgressIndicator()),
           );
         }
-
         final ranking = snap.data!;
         if (ranking.isEmpty) {
           return const Text('Aún no hay jugadores.');
         }
-
         final top = ranking.take(3).toList();
-
         return Column(
           children: [
             for (int i = 0; i < top.length; i++)
@@ -473,7 +489,6 @@ class _HomeScreenState extends State<HomeScreen> {
       const Color(0xFFCD7F32), // bronce
     ];
     final medalColor = medalColors[index];
-
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 4),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -514,7 +529,6 @@ class _HomeScreenState extends State<HomeScreen> {
   // datos del partido a la derecha, y abajo los apuntados con el botón.
   Widget _buildNextMatchContent(Match match, Membership membership) {
     final amIn = match.slots.any((s) => s.playerId == membership.userId);
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -619,9 +633,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
-
-        Divider(height: 28, color: AppTheme.kGreen.withValues(alpha: 0.25)),
-
+        Divider(height: 28, color: AppTheme.kGreen.withValues(alpha: 0.35)),
         // --- Fila inferior: apuntados + botón ---
         Row(
           children: [
@@ -677,26 +689,21 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildSignedUpPlayers(Match match) {
     // Nos quedamos con los slots ocupados: tienen nombre Y foto.
     final occupiedSlots = match.slots.where((s) => s.playerId != null).toList();
-
     final total = match.slots.length;
-
     if (occupiedSlots.isEmpty) {
       return const Text(
         'Nadie apuntado aún',
         style: TextStyle(fontSize: 13, color: AppTheme.kInkSoft),
       );
     }
-
     const maxVisible = 4; // a partir de aquí, se resume con "+N"
     const size = 32.0;
     const border = 2.0; // borde del avatar, sobresale por fuera del contenido
     const outer = size + border * 2; // tamaño real de la burbuja con borde
     const step = 23.0; // avance entre avatares (menor que outer = se solapan)
-
     final visible = occupiedSlots.take(maxVisible).toList();
     final extra = occupiedSlots.length - visible.length;
     final bubbles = visible.length + (extra > 0 ? 1 : 0);
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -757,7 +764,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     }
-
     // Caso jugador: foto o inicial, con borde del color de la tarjeta.
     return PlayerAvatar(
       photoUrl: photoUrl,
