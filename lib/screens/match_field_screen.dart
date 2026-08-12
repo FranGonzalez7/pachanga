@@ -15,13 +15,11 @@ enum _FormationChangeChoice { keep, reset }
 class MatchFieldScreen extends StatefulWidget {
   final Match match;
   final Membership currentMembership;
-
   const MatchFieldScreen({
     super.key,
     required this.match,
     required this.currentMembership,
   });
-
   @override
   State<MatchFieldScreen> createState() => _MatchFieldScreenState();
 }
@@ -32,11 +30,8 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
   late Match _match;
   bool _isSaving = false;
   Membership? _selectedPlayer; // jugador que el capitán va a colocar
-
   List<Membership> _groupMembers = []; // todos los miembros del grupo
-
   late TabController _tabController;
-
   static const List<String> _positions = [
     'Portero',
     'Defensa',
@@ -44,19 +39,14 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
     'Lateral',
     'Delantero',
   ];
-
-  // Colores de equipo (algo apagados para que peguen con la crema). Se usan
-  // tanto en las burbujas del campo como en las pestañas, para que el mapeo
-  // color -> equipo sea consistente en toda la pantalla.
-  static const Color _teamRed = Color(0xFFD32F2F);
-  static const Color _teamBlue = Color(0xFF1976D2);
-
+  // Los colores de equipo viven ahora en el tema (AppTheme.kTeamRed /
+  // kTeamBlue): son "colores de la app", compartidos con la pantalla de
+  // puntuación, así que no se duplican aquí.
   // Tamaño del círculo de burbuja (avatar + borde) y separación con su
   // etiqueta. En una sola constante para que el círculo, su footprint y el
   // hueco vacío no se desincronicen nunca al ajustarlos.
   static const double _bubbleSize = 78;
   static const double _labelGap = 3;
-
   // Meses en español para el diálogo de información (sin depender de intl).
   static const List<String> _monthNames = [
     'enero',
@@ -72,20 +62,15 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
     'noviembre',
     'diciembre',
   ];
-
   // ¿Puede gestionar? (capitán o co-capitán). El nombre _isCaptain se queda
   // porque toda la pantalla pregunta por él; su significado ahora es "manda".
   bool get _isCaptain => widget.currentMembership.canManage;
-
   // Equipo de la tab activa (para el selector de formación del capitán)
   String get _activeTeam =>
       _tabController.index == 0 ? Match.teamA : Match.teamB;
-
   String get _activeTeamLabel => _activeTeam == Match.teamA ? 'Rojo' : 'Azul';
-
   String get _activeFormationName =>
       _activeTeam == Match.teamA ? _match.formationA : _match.formationB;
-
   @override
   void initState() {
     super.initState();
@@ -118,7 +103,6 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
   }
 
   String get _myUid => widget.currentMembership.userId;
-
   // Devuelve los miembros que AÚN NO están en ningún hueco del partido
   List<Membership> get _availablePlayers {
     final occupiedIds = _match.slots
@@ -139,20 +123,17 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
   // Maneja el toque sobre una burbuja
   Future<void> _onBubbleTap(int slotIndex) async {
     final slot = _match.slots[slotIndex];
-
     // Caso capitán: hay un jugador seleccionado y la burbuja está vacía
     if (_isCaptain && _selectedPlayer != null && slot.playerId == null) {
       await _placeSelectedPlayer(slotIndex);
       return;
     }
-
     // Caso capitán: toca la burbuja de OTRO jugador -> ofrecer quitarlo
     if (_isCaptain && slot.playerId != null && slot.playerId != _myUid) {
       final confirm = await _confirmRemovePlayer(
         slot.playerName ?? 'este jugador',
       );
       if (confirm != true) return;
-
       setState(() => _isSaving = true);
       await _firestoreService.leaveSlot(
         matchId: _match.matchId,
@@ -162,12 +143,10 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
       if (mounted) setState(() => _isSaving = false);
       return;
     }
-
     if (slot.playerId == null) {
       // Burbuja vacía: me apunto (elijo posición)
       final position = await _askPosition();
       if (position == null) return; // canceló
-
       setState(() => _isSaving = true);
       await _firestoreService.joinSlot(
         matchId: _match.matchId,
@@ -183,7 +162,6 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
       // Mi propia burbuja: me salgo
       final confirm = await _confirmLeave();
       if (confirm != true) return;
-
       setState(() => _isSaving = true);
       await _firestoreService.leaveSlot(
         matchId: _match.matchId,
@@ -211,10 +189,8 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
   Future<void> _placeSelectedPlayer(int slotIndex) async {
     final player = _selectedPlayer;
     if (player == null) return;
-
     final position = await _askPosition();
     if (position == null) return; // canceló el modal de posición
-
     setState(() => _isSaving = true);
     await _firestoreService.joinSlot(
       matchId: _match.matchId,
@@ -266,18 +242,14 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
   Future<void> _onFormationSelected(String selected) async {
     final team = _activeTeam;
     final currentName = _activeFormationName;
-
     // Eligió la que ya estaba: nada que hacer.
     if (selected == currentName) return;
-
     // ¿Cuántos jugadores colocados tiene ESTE equipo? (el otro no se toca)
     final occupied = _match.slots
         .where((s) => s.team == team && s.playerId != null)
         .length;
-
     // Equipo vacío: no hay a quién mantener, cambiamos directamente.
     bool keepPlayers = false;
-
     if (occupied > 0) {
       final choice = await showDialog<_FormationChangeChoice>(
         context: context,
@@ -305,12 +277,10 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
           ],
         ),
       );
-
       // Cerró sin elegir (Cancelar o toque fuera): no hacemos nada.
       if (choice == null) return;
       keepPlayers = choice == _FormationChangeChoice.keep;
     }
-
     setState(() => _isSaving = true);
     await _firestoreService.setTeamFormation(
       matchId: _match.matchId,
@@ -369,10 +339,8 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
 
   String _formatDate(DateTime d) =>
       '${d.day} de ${_monthNames[d.month - 1]} de ${d.year}';
-
   String _formatTime(DateTime d) =>
       '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
-
   Future<bool?> _confirmLeave() {
     return showDialog<bool>(
       context: context,
@@ -434,9 +402,7 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
         ],
       ),
     );
-
     if (confirm != true) return;
-
     setState(() => _isSaving = true);
     await _firestoreService.clearAllSlots(_match.matchId);
     await _reloadMatch();
@@ -452,7 +418,6 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
   Future<void> _startMatch() async {
     // Comprobamos si quedan huecos vacíos
     final emptySlots = _match.slots.where((s) => s.playerId == null).length;
-
     if (emptySlots > 0) {
       final confirm = await showDialog<bool>(
         context: context,
@@ -475,7 +440,6 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
       );
       if (confirm != true) return;
     }
-
     setState(() => _isSaving = true);
     await _firestoreService.updateMatchStatus(_match.matchId, 'inProgress');
     await _reloadMatch();
@@ -498,8 +462,9 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
   @override
   Widget build(BuildContext context) {
     // Color del equipo activo (para el subrayado y el label de las pestañas).
-    final activeColor = _activeTeam == Match.teamA ? _teamRed : _teamBlue;
-
+    final activeColor = _activeTeam == Match.teamA
+        ? AppTheme.kTeamRed
+        : AppTheme.kTeamBlue;
     return Scaffold(
       appBar: AppBar(
         title: Text(_match.type),
@@ -583,8 +548,8 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
           labelColor: activeColor,
           unselectedLabelColor: AppTheme.kInkSoft,
           tabs: [
-            _buildTeamTab('Equipo Rojo', _teamRed),
-            _buildTeamTab('Equipo Azul', _teamBlue),
+            _buildTeamTab('Equipo Rojo', AppTheme.kTeamRed),
+            _buildTeamTab('Equipo Azul', AppTheme.kTeamBlue),
           ],
         ),
       ),
@@ -597,9 +562,17 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
                   controller: _tabController,
                   children: [
                     // Rojo (A) defiende la portería de arriba: espejo.
-                    _buildTeamField(Match.teamA, _teamRed, mirror: true),
+                    _buildTeamField(
+                      Match.teamA,
+                      AppTheme.kTeamRed,
+                      mirror: true,
+                    ),
                     // Azul (B) defiende abajo: coordenadas tal cual.
-                    _buildTeamField(Match.teamB, _teamBlue, mirror: false),
+                    _buildTeamField(
+                      Match.teamB,
+                      AppTheme.kTeamBlue,
+                      mirror: false,
+                    ),
                   ],
                 ),
                 if (_isSaving)
@@ -739,7 +712,6 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
         ? _match.formationA
         : _match.formationB;
     final formation = getFormation(_match.type, formationName);
-
     // AspectRatio fuerza la proporción del SVG (680x1050): el campo se ve
     // ENTERO, centrado, sin que BoxFit.cover lo agrande y lo recorte por los
     // lados. Con la proporción ya fijada, BoxFit.fill no deforma. El fondo
@@ -805,7 +777,6 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
   }) {
     final slot = _match.slots[slotIndex];
     final isOccupied = slot.playerId != null;
-
     // El círculo: avatar (foto o inicial) o el "+" de hueco vacío. Mide
     // _bubbleSize x _bubbleSize (borde 3 incluido).
     final Widget circle = isOccupied
@@ -839,7 +810,6 @@ class _MatchFieldScreenState extends State<MatchFieldScreen>
               ),
             ),
           );
-
     return GestureDetector(
       onTap: () => _onBubbleTap(slotIndex),
       // Footprint FIJO del tamaño del círculo: solo el círculo. El Align

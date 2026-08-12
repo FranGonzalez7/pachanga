@@ -25,6 +25,11 @@ class AppTheme {
   ); // crema de tarjetas (claro)
   static const Color kInk = Color(0xFF2E2A24); // "tinta": texto, marrón oscuro
   static const Color kInkSoft = Color(0xFF7A7566); // texto secundario, apagado
+  // Colores de equipo: rojo y azul algo apagados para que peguen con la crema.
+  // Se usan en las dos pantallas de partido (campo y puntuación) para que el
+  // mapeo color -> equipo sea idéntico en toda la app.
+  static const Color kTeamRed = Color(0xFFD32F2F);
+  static const Color kTeamBlue = Color(0xFF1976D2);
   // --- Métricas compartidas ---------------------------------------------
   // Altura de la cenefa de césped: proporción real del asset recortado
   // (1024x114) al ancho de pantalla, para que las hojas no se deformen.
