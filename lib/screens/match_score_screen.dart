@@ -277,60 +277,10 @@ class _MatchScoreScreenState extends State<MatchScoreScreen> {
       ),
       child: Column(
         children: [
-          // El marcador enmarcado como un mini campo: líneas verdes de fondo
-          // (marco, línea de medio campo y círculo central) pintadas por
-          // detrás; el "-" cae sobre el círculo central, como el punto de saque.
-          CustomPaint(
-            painter: _PitchLinesPainter(
-              lineColor: AppTheme.kGreen.withValues(alpha: 0.55),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 18,
-                vertical: _scorePadV,
-              ),
-              // Cada lado en un Expanded: ocupa EXACTAMENTE media mitad del
-              // campo y centra su contenido ahí. Así "Rojo" queda en el centro
-              // de su portería y "Azul" en la suya, en vez de escorados hacia
-              // la línea media (que es lo que hacía spaceEvenly con 2 hijos).
-              child: Row(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start, // alineamos por arriba
-                children: [
-                  Expanded(
-                    child: _scoreSide(
-                      label: 'Rojo',
-                      score: _match.teamAScore,
-                      color: AppTheme.kTeamRed,
-                      extra: extraA,
-                      onAdd: (_isSaving || !_canEdit)
-                          ? null
-                          : () => _changeTeamExtra('A', 1),
-                      onRemove: (_isSaving || !_canEdit || extraA == 0)
-                          ? null
-                          : () => _changeTeamExtra('A', -1),
-                    ),
-                  ),
-                  // El centro queda libre para el círculo del campo (pintado
-                  // por detrás); ya no hay guión.
-                  Expanded(
-                    child: _scoreSide(
-                      label: 'Azul',
-                      score: _match.teamBScore,
-                      color: AppTheme.kTeamBlue,
-                      extra: extraB,
-                      onAdd: (_isSaving || !_canEdit)
-                          ? null
-                          : () => _changeTeamExtra('B', 1),
-                      onRemove: (_isSaving || !_canEdit || extraB == 0)
-                          ? null
-                          : () => _changeTeamExtra('B', -1),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          // Dos caras del mismo marcador: EN JUEGO, el campo (vivo, con los
+          // controles +/-); TERMINADO, un panel sobrio de resultado. El estado
+          // manda; no son pantallas distintas, solo dos formas del marcador.
+          _isPlayed ? _buildFinalResult() : _buildLivePitch(extraA, extraB),
           if (extraA > 0 || extraB > 0)
             Padding(
               padding: const EdgeInsets.only(top: 8),
@@ -342,6 +292,146 @@ class _MatchScoreScreenState extends State<MatchScoreScreen> {
             ),
         ],
       ),
+    );
+  }
+
+  // EN JUEGO: el marcador enmarcado como un mini campo de fútbol (marco, línea
+  // de medio campo, círculo central y porterías), con los controles +/-.
+  Widget _buildLivePitch(int extraA, int extraB) {
+    return CustomPaint(
+      painter: _PitchLinesPainter(
+        lineColor: AppTheme.kGreen.withValues(alpha: 0.55),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 18,
+          vertical: _scorePadV,
+        ),
+        // Cada lado en un Expanded: ocupa EXACTAMENTE media mitad del campo y
+        // centra su contenido ahí, en el centro de su portería.
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _scoreSide(
+                label: 'Rojo',
+                score: _match.teamAScore,
+                color: AppTheme.kTeamRed,
+                extra: extraA,
+                onAdd: (_isSaving || !_canEdit)
+                    ? null
+                    : () => _changeTeamExtra('A', 1),
+                onRemove: (_isSaving || !_canEdit || extraA == 0)
+                    ? null
+                    : () => _changeTeamExtra('A', -1),
+              ),
+            ),
+            Expanded(
+              child: _scoreSide(
+                label: 'Azul',
+                score: _match.teamBScore,
+                color: AppTheme.kTeamBlue,
+                extra: extraB,
+                onAdd: (_isSaving || !_canEdit)
+                    ? null
+                    : () => _changeTeamExtra('B', 1),
+                onRemove: (_isSaving || !_canEdit || extraB == 0)
+                    ? null
+                    : () => _changeTeamExtra('B', -1),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // TERMINADO: panel sobrio de resultado final. Sin líneas de campo: rótulo
+  // "Resultado final", el marcador "A - B" con el ganador a plena tinta (el
+  // perdedor atenuado), y debajo quién gana o si hubo empate.
+  Widget _buildFinalResult() {
+    final a = _match.teamAScore;
+    final b = _match.teamBScore;
+    final aWins = a > b;
+    final bWins = b > a;
+    final String outcome;
+    final Color outcomeColor;
+    if (aWins) {
+      outcome = 'Gana el equipo Rojo';
+      outcomeColor = AppTheme.kTeamRed;
+    } else if (bWins) {
+      outcome = 'Gana el equipo Azul';
+      outcomeColor = AppTheme.kTeamBlue;
+    } else {
+      outcome = 'Empate';
+      outcomeColor = AppTheme.kInkSoft;
+    }
+    return Column(
+      children: [
+        const Text(
+          'RESULTADO FINAL',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: AppTheme.kInkSoft,
+            letterSpacing: 1.5,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          // Alineamos por la base: el "-" cae a la altura de los números,
+          // no de las etiquetas.
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(child: _finalSide('Rojo', a, AppTheme.kTeamRed, aWins)),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8),
+              child: Text(
+                '-',
+                style: TextStyle(
+                  fontSize: 40,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.kInkSoft,
+                ),
+              ),
+            ),
+            Expanded(child: _finalSide('Azul', b, AppTheme.kTeamBlue, bWins)),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Text(
+          outcome,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: outcomeColor,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Una mitad del panel de resultado: etiqueta de equipo y su número. El
+  // ganador va a plena tinta; el perdedor, atenuado, para que el resultado se
+  // lea de un vistazo sin gritar.
+  Widget _finalSide(String label, int score, Color color, bool isWinner) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: TextStyle(fontWeight: FontWeight.bold, color: color),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '$score',
+          style: TextStyle(
+            fontSize: 44,
+            fontWeight: FontWeight.bold,
+            color: isWinner ? AppTheme.kInk : AppTheme.kInkSoft,
+          ),
+        ),
+      ],
     );
   }
 
