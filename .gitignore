@@ -43,3 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Imágenes de trabajo (no forman parte de la app)
+imágenes/
