@@ -24,7 +24,7 @@
 
 | Inicio | Pizarra táctica | Puntuación en vivo |
 | :---: | :---: | :---: |
-| ![Home](screenshots/home.png) | ![Campo](screenshots/field.png) | ![Marcador](screenshots/score.png) |
+| ![Home](screenshots/home2.png) | ![Campo](screenshots/field.png) | ![Marcador](screenshots/score.png) |
 
 | Cromo de jugador | Jugadores | Resultado final |
 | :---: | :---: | :---: |
