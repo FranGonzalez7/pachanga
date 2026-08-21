@@ -26,9 +26,9 @@
 | :---: | :---: | :---: |
 | ![Home](screenshots/home2.png) | ![Campo](screenshots/field.png) | ![Marcador](screenshots/score.png) |
 
-| Cromo de jugador | Jugadores | Resultado final |
+| Cromo de jugador | Jugadores | Partidos |
 | :---: | :---: | :---: |
-| ![Cromo](screenshots/card.png) | ![Jugadores](screenshots/players.png) | ![Resultado](screenshots/result.png) |
+| ![Cromo](screenshots/card.png) | ![Jugadores](screenshots/players.png) | ![Partidos](screenshots/players.png) |
 
 **Cambio de formación animado:**
 
