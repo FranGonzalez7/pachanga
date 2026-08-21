@@ -28,7 +28,7 @@
 
 | Cromo de jugador | Jugadores | Partidos |
 | :---: | :---: | :---: |
-| ![Cromo](screenshots/card.png) | ![Jugadores](screenshots/players.png) | ![Partidos](screenshots/players.png) |
+| ![Cromo](screenshots/card.png) | ![Jugadores](screenshots/players.png) | ![Partidos](screenshots/matches.png) |
 
 **Cambio de formación animado:**
 
