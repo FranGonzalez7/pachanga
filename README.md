@@ -20,7 +20,7 @@
 
 **⚽Perfil y cromos.** Foto de perfil con recorte integrado, y una vista de "cromo" para cada jugador con sus estadísticas, al estilo de los álbumes de toda la vida.
 
-## Capturas y GiFs
+## Capturas:
 
 | Inicio | Pizarra táctica | Puntuación en vivo |
 | :---: | :---: | :---: |
@@ -39,13 +39,13 @@
 **Pantalla de Partidos:**
 
 <p align="center">
-  <img src="screenshots/matches.gif" width="300" alt="Partidos />
+  <img src="screenshots/matches.gif" width="300" alt="Partidos" />
 </p>
 
 **Pantalla de Jugadores:**
 
 <p align="center">
-  <img src="screenshots/players.gif" width="300" alt="Partidos />
+  <img src="screenshots/players.gif" width="300" alt="Jugadores" />
 </p>
 
 ## Stack
