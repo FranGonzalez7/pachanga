@@ -22,10 +22,6 @@
 
 ## Capturas y GiFs
 
-| Login & Home | Players | Matches |
-| :---: | :---: | :---: |
-| ![Home](screenshots/login_and_home.gif) | ![Players](screenshots/players.gif) | ![Matches](screenshots/matches.gif) |
-
 | Inicio | Pizarra táctica | Puntuación en vivo |
 | :---: | :---: | :---: |
 | ![Home](screenshots/home.png) | ![Campo](screenshots/field.png) | ![Marcador](screenshots/score.png) |
@@ -34,16 +30,22 @@
 | :---: | :---: | :---: |
 | ![Cromo](screenshots/card.png) | ![Jugadores](screenshots/players.png) | ![Partidos](screenshots/matches.png) |
 
-**Cambio de formación animado:**
+**Pantalla de Inicio y Login:**
 
 <p align="center">
-  <img src="screenshots/formation.gif" width="300" alt="Cambio de formación" />
+  <img src="screenshots/login_and_home.gif" width="300" alt="Inicio y Login" />
 </p>
 
-**Colocar un jugador en el campo:**
+**Pantalla de Partidos:**
 
 <p align="center">
-  <img src="screenshots/place_player.gif" width="300" alt="Colocar jugador" />
+  <img src="screenshots/matches.gif" width="300" alt="Partidos />
+</p>
+
+**Pantalla de Jugadores:**
+
+<p align="center">
+  <img src="screenshots/players.gif" width="300" alt="Partidos />
 </p>
 
 ## Stack
