@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
-// Avatar de jugador reutilizable. Se ocupa SOLO de decidir qué pintar:
-// la foto (si hay photoUrl) o la inicial del nombre (si no).
+// Avatar de jugador reutilizable. Solo decide qué pintar: la foto (si hay
+// photoUrl) o la inicial del nombre (si no).
 //
-// NO decide la forma: rellena un cuadrado de lado [size]. Quien lo use lo
-// envuelve en la forma que quiera (ClipOval para círculos, ClipRRect para
-// la carta...). Así el mismo widget sirve en el Home, la lista, las burbujas
-// y la carta de jugador, tenga cada una la forma que tenga.
+// No decide la forma: rellena un cuadrado de lado [size]. Quien lo use lo
+// envuelve en la forma que quiera (ClipOval para círculos, ClipRRect para la
+// carta...), así el mismo widget sirve en el Home, la lista, las burbujas y la
+// carta de jugador.
 //
-// El placeholder (sin foto) es configurable: cada sitio pasa sus colores
-// para respetar su estilo. El tamaño de la inicial se calcula solo a partir
-// de [size], salvo que se pase [fontSize] a mano. Si se pasa [borderColor],
-// el avatar se dibuja circular con ese borde (el caso más común); si no, se
-// devuelve "desnudo" para que quien lo use le dé la forma que quiera.
+// El placeholder (sin foto) es configurable: cada sitio pasa sus colores. El
+// tamaño de la inicial se calcula a partir de [size], salvo que se pase
+// [fontSize]. Si se pasa [borderColor], el avatar se dibuja circular con ese
+// borde (el caso más común); si no, se devuelve "desnudo" para que quien lo use
+// le dé la forma.
 class PlayerAvatar extends StatelessWidget {
   final String? photoUrl;
   final String name;
@@ -23,11 +23,11 @@ class PlayerAvatar extends StatelessWidget {
   final Color backgroundColor;
   final Color initialColor;
 
-  // Si no se pasa, la inicial se dimensiona como una fracción del tamaño.
+  // Si no se pasa, la inicial se dimensiona como fracción del tamaño.
   final double? fontSize;
 
-  // Si se pasa, el avatar se recorta en círculo con este borde. Si es null,
-  // el avatar se devuelve sin forma ni borde (quien lo use lo envuelve).
+  // Si se pasa, el avatar se recorta en círculo con este borde. Si es null, se
+  // devuelve sin forma ni borde (quien lo use lo envuelve).
   final Color? borderColor;
   final double borderWidth;
 
@@ -45,15 +45,14 @@ class PlayerAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // El contenido en bruto (foto o inicial), que rellena el cuadrado.
     final content = _buildContent();
 
-    // Sin borde: se devuelve tal cual, para que quien lo use le dé forma.
+    // Sin borde: se devuelve tal cual para que quien lo use le dé forma.
     if (borderColor == null) return content;
 
-    // Con borde: círculo recortado + borde por FUERA del recorte (envolver
-    // el ClipOval en un Container con borde; si el borde fuera dentro del
-    // clip, el recorte se comería parte y quedaría irregular).
+    // Con borde: el borde va por fuera del recorte (Container con borde
+    // envolviendo el ClipOval); si fuera dentro del clip, el recorte se comería
+    // parte y quedaría irregular.
     return Container(
       decoration: BoxDecoration(
         shape: BoxShape.circle,
@@ -66,7 +65,7 @@ class PlayerAvatar extends StatelessWidget {
   Widget _buildContent() {
     final url = photoUrl;
 
-    // Con foto: la imagen rellena el cuadrado, recortando para no deformar.
+    // Con foto: rellena el cuadrado recortando para no deformar.
     if (url != null && url.isNotEmpty) {
       return SizedBox(
         width: size,
@@ -74,19 +73,18 @@ class PlayerAvatar extends StatelessWidget {
         child: Image.network(
           url,
           fit: BoxFit.cover,
-          // Mientras carga, un fondo neutro para que no "parpadee".
+          // Fondo neutro mientras carga, para que no parpadee.
           loadingBuilder: (context, child, progress) {
             if (progress == null) return child;
             return Container(color: backgroundColor);
           },
-          // Si la foto falla (URL rota, sin red), caemos a la inicial en
-          // vez de mostrar el icono de imagen rota.
+          // Si la foto falla (URL rota, sin red), caemos a la inicial en vez del
+          // icono de imagen rota.
           errorBuilder: (context, error, stack) => _buildInitial(),
         ),
       );
     }
 
-    // Sin foto: la inicial sobre el fondo del placeholder.
     return _buildInitial();
   }
 

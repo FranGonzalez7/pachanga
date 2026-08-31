@@ -3,6 +3,7 @@ class Slot {
   final String position;
   final String? playerId;
   final String? playerName;
+  
   // Foto del jugador que ocupa el slot. Desnormalizada aquí (como playerName)
   // para pintar las burbujas/hileras sin buscar la membresía de cada uno.
   final String? photoUrl;
@@ -35,7 +36,7 @@ class Slot {
     };
   }
 
-  // Devuelve una copia del slot cambiando solo los campos indicados
+  // Copia del slot cambiando solo los campos indicados.
   Slot copyWith({
     String? team,
     String? position,

@@ -11,12 +11,12 @@ class Membership {
   final int losses;
   final int matchesPlayed;
   final DateTime joinedAt;
-  // Jugador fantasma: creado por el capitán, sin cuenta propia.
-  // Por defecto false (los jugadores normales tienen cuenta).
+  // Jugador fantasma: creado por el capitán, sin cuenta propia. Por defecto
+  // false (los jugadores normales tienen cuenta).
   final bool isGhost;
-  // Foto de perfil del jugador. Desnormalizada aquí (no solo en AppUser)
-  // para pintar avatares sin lecturas extra, y para que los fantasmas
-  // también puedan tener foto. null = sin foto (se usa el placeholder).
+  // Foto de perfil, desnormalizada aquí (no solo en AppUser) para pintar
+  // avatares sin lecturas extra y para que los fantasmas también puedan tener
+  // foto. null = sin foto (se usa el placeholder).
   final String? photoUrl;
 
   Membership({
@@ -34,33 +34,31 @@ class Membership {
     this.photoUrl,
   });
 
-  // --- Roles ------------------------------------------------------------
-  // Valores posibles de 'role'. Centralizados aquí para no repetir strings
+  // Valores posibles de 'role', centralizados aquí para no repetir strings
   // mágicos por la app (mismo principio que Match.teamA/teamB).
   static const String roleCaptain = 'captain';
   static const String roleCoCaptain = 'coCaptain';
   static const String rolePlayer = 'player';
 
-  // ¿Es EL capitán del grupo? (el único que puede nombrar co-capitanes)
+  // El capitán del grupo: el único que puede nombrar co-capitanes.
   bool get isCaptain => role == roleCaptain;
 
-  // ¿Es co-capitán? (nombrado por el capitán; gestiona, pero no nombra)
+  // Co-capitán: nombrado por el capitán, gestiona pero no nombra.
   bool get isCoCaptain => role == roleCoCaptain;
 
-  // ¿Puede gestionar el grupo? La pregunta que hace casi toda la app
-  // (crear partidos, colocar jugadores, puntuar...). Capitán y co-capitán
-  // pueden; el matiz "solo el capitán" queda para isCaptain.
+  // ¿Puede gestionar el grupo? La pregunta que hace casi toda la app (crear
+  // partidos, colocar jugadores, puntuar...). Capitán y co-capitán pueden; el
+  // matiz "solo el capitán" queda para isCaptain.
   bool get canManage => isCaptain || isCoCaptain;
 
-  // Etiqueta del rol para pintar en pantalla. Centralizada aquí: si mañana
-  // cambia un rol o aparece otro, hay UN sitio que tocar, no N pantallas.
+  // Etiqueta del rol para pintar en pantalla. Centralizada: si cambia un rol o
+  // aparece otro, hay un solo sitio que tocar.
   String get roleLabel {
     if (isCaptain) return 'Capitán';
     if (isCoCaptain) return 'Co-capitán';
     return 'Jugador';
   }
 
-  // De Firestore (Map) a objeto Membership
   factory Membership.fromMap(Map<String, dynamic> data) {
     return Membership(
       userId: data['userId'] as String,
@@ -79,7 +77,6 @@ class Membership {
     );
   }
 
-  // De objeto Membership a Firestore (Map)
   Map<String, dynamic> toMap() {
     return {
       'userId': userId,

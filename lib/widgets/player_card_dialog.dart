@@ -4,12 +4,12 @@ import '../services/firestore_service.dart';
 import '../theme/app_theme.dart';
 import 'player_avatar.dart';
 
-// Diálogo con las cartas de jugador (estilo cromo), deslizables horizontalmente.
+// Diálogo con las cartas de jugador (estilo cromo), deslizables en horizontal.
 class PlayerCardDialog extends StatefulWidget {
   final List<Membership> players;
   final int initialIndex;
-  // Quien mira: su rol decide qué acciones ve en cada cromo (un bool ya no
-  // basta desde los co-capitanes; las reglas dependen de QUIÉN mira a quién).
+  // Quien mira: su rol decide qué acciones ve en cada cromo (un bool ya no basta
+  // desde los co-capitanes; las reglas dependen de quién mira a quién).
   final Membership viewer;
   final VoidCallback? onChanged;
 
@@ -62,7 +62,7 @@ class _PlayerCardDialogState extends State<PlayerCardDialog> {
     super.dispose();
   }
 
-  // Confirma y elimina a un jugador. La llama la carta desde su botón.
+  // Confirma y elimina a un jugador (la llama la carta desde su botón).
   Future<void> _confirmDelete(Membership player) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -95,7 +95,7 @@ class _PlayerCardDialogState extends State<PlayerCardDialog> {
     );
 
     if (!mounted) return;
-    // Cerramos el diálogo entero y avisamos a la lista para que refresque.
+    // Cerramos el diálogo y avisamos a la lista para que refresque.
     Navigator.of(context).pop();
     widget.onChanged?.call();
   }
@@ -132,7 +132,7 @@ class _PlayerCardDialogState extends State<PlayerCardDialog> {
     );
 
     if (newName == null || newName.isEmpty) return;
-    if (newName == player.displayName) return; // sin cambios, no hacemos nada
+    if (newName == player.displayName) return; // sin cambios
 
     await _firestoreService.updateGhostName(
       userId: player.userId,
@@ -141,7 +141,6 @@ class _PlayerCardDialogState extends State<PlayerCardDialog> {
     );
 
     if (!mounted) return;
-    // Cerramos y avisamos a la lista para que recargue con el nombre nuevo.
     Navigator.of(context).pop();
     widget.onChanged?.call();
   }
@@ -154,9 +153,8 @@ class _PlayerCardDialogState extends State<PlayerCardDialog> {
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(vertical: 40),
       child: SizedBox(
-        // Altura ajustada al cromo (520) + holgura para su sombra. Sin la
-        // banda externa de antes: así casi no queda zona transparente que no
-        // cierre el diálogo al tocarla.
+        // Altura ajustada al cromo (520) + holgura para su sombra: apenas queda
+        // zona transparente que al tocarla no cierre el diálogo.
         height: 560,
         child: PageView.builder(
           controller: _pageController,
@@ -167,12 +165,10 @@ class _PlayerCardDialogState extends State<PlayerCardDialog> {
             final player = widget.players[index];
             final isMe = player.userId == viewer.userId;
 
-            // Reglas de borrado:
-            // - hay que poder gestionar (capitán o co-capitán), y no borrarse
-            //   a uno mismo;
-            // - al CAPITÁN no lo borra nadie, nunca;
-            // - un co-capitán no borra a otro co-capitán (quitar co-capitanes
-            //   es potestad del capitán, y echarlo del grupo lo sería aún más).
+            // Reglas de borrado: hay que poder gestionar (capitán o co-capitán)
+            // y no borrarse a uno mismo; al capitán no lo borra nadie; y un
+            // co-capitán no borra a otro co-capitán (quitar co-capitanes es
+            // potestad del capitán).
             final canDelete =
                 viewer.canManage &&
                 !isMe &&
@@ -197,7 +193,7 @@ class _PlayerCardDialogState extends State<PlayerCardDialog> {
   }
 }
 
-// Una carta individual, estilo cromo de fútbol. Marco ámbar si es el propio
+// Una carta individual estilo cromo de fútbol. Marco ámbar si es el propio
 // jugador ("cromo dorado"), verde para el resto. Las acciones de gestión van
 // dentro del cromo, sobre el divider.
 class _PlayerCard extends StatelessWidget {
@@ -217,17 +213,17 @@ class _PlayerCard extends StatelessWidget {
     required this.onEdit,
   });
 
-  // Radio del marco del cromo y hueco alrededor de la foto. La foto redondea
-  // con (radio del marco - hueco) para que su curva quede CONCÉNTRICA con la
-  // del marco (paralelas, como un paspartú que respeta la forma).
+  // Radio del marco y hueco alrededor de la foto. La foto redondea con (radio
+  // del marco - hueco) para que su curva quede concéntrica con la del marco,
+  // como un paspartú que respeta la forma.
   static const double _frameRadius = 22;
   static const double _photoInset = 14; // hueco entre marco y foto
   static const double _cardHeight =
-      520; // altura FIJA: todos los cromos iguales
+      520; // altura fija: todos los cromos iguales
 
   @override
   Widget build(BuildContext context) {
-    // Marco: ámbar para ti (cromo dorado), verde para los demás.
+    // Marco ámbar para ti (cromo dorado), verde para los demás.
     final frameColor = isMe ? AppTheme.kAmber : AppTheme.kGreen;
 
     return Padding(
@@ -242,7 +238,7 @@ class _PlayerCard extends StatelessWidget {
                 color: AppTheme.kCreamCard,
                 borderRadius: BorderRadius.circular(_frameRadius),
                 border: Border.all(color: frameColor, width: 3),
-                // Doble sombra: una difusa y lejana + otra cercana = 3D.
+                // Doble sombra (una difusa y lejana + otra cercana) para el 3D.
                 boxShadow: [
                   BoxShadow(
                     color: AppTheme.kInk.withValues(alpha: 0.35),
@@ -271,8 +267,8 @@ class _PlayerCard extends StatelessWidget {
   }
 
   // Zona superior: foto grande a la izquierda (rectangular, dos esquinas
-  // redondeadas siguiendo la curva del marco) y el número de puntos a la
-  // derecha. La insignia de rol va superpuesta en la esquina superior de la foto.
+  // redondeadas siguiendo la curva del marco) y los puntos a la derecha. La
+  // insignia de rol va superpuesta en la esquina superior de la foto.
   Widget _buildTopZone() {
     // Radio de la foto = radio del marco - hueco => curvas concéntricas.
     final photoCorner = _frameRadius - _photoInset;
@@ -281,8 +277,8 @@ class _PlayerCard extends StatelessWidget {
       height: 276,
       child: Stack(
         children: [
-          // Foto despegada del marco por arriba y por la izquierda (_photoInset).
-          // Va en su propio Stack para superponerle la insignia de rol.
+          // Foto despegada del marco por arriba y por la izquierda. En su propio
+          // Stack para superponerle la insignia de rol.
           Positioned(
             top: _photoInset,
             left: _photoInset,
@@ -299,8 +295,7 @@ class _PlayerCard extends StatelessWidget {
                     child: SizedBox(
                       width: 224,
                       height: 262,
-                      // PlayerAvatar en modo "desnudo" (sin borde): aquí la
-                      // forma la da el ClipRRect, no el widget.
+                      // PlayerAvatar sin borde: aquí la forma la da el ClipRRect.
                       child: PlayerAvatar(
                         photoUrl: player.photoUrl,
                         name: player.displayName,
@@ -351,11 +346,10 @@ class _PlayerCard extends StatelessWidget {
     );
   }
 
-  // Zona inferior: nombre y posiciones arriba; abajo, los botones de gestión
-  // (si los hay) justo encima del divider verde, y la rejilla de stats.
-  // El divider y las stats quedan anclados abajo por igual en TODAS las cartas
-  // (spaceBetween los empuja al fondo); los botones solo "crecen" hacia arriba
-  // por encima del divider cuando existen. Así stats y divider no se mueven.
+  // Zona inferior: nombre y posiciones arriba; abajo, los botones de gestión (si
+  // los hay) sobre el divider, y la rejilla de stats. El divider y las stats van
+  // anclados al fondo por igual en todas las cartas (spaceBetween); los botones
+  // solo crecen hacia arriba cuando existen, así stats y divider no se mueven.
   Widget _buildBottomZone() {
     final hasButtons = canEdit || canDelete;
     return Padding(
@@ -385,8 +379,7 @@ class _PlayerCard extends StatelessWidget {
           ),
           Column(
             children: [
-              // Acciones de gestión: a la derecha, justo encima del divider.
-              // Círculos con borde verde.
+              // Acciones de gestión: a la derecha, sobre el divider.
               if (hasButtons)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 10),
@@ -409,7 +402,6 @@ class _PlayerCard extends StatelessWidget {
                     ],
                   ),
                 ),
-              // Divider verde grueso.
               Container(height: 2, color: AppTheme.kGreen),
               const SizedBox(height: 14),
               Row(
@@ -448,8 +440,8 @@ class _PlayerCard extends StatelessWidget {
     );
   }
 
-  // Insignia de rol: capitán (ámbar), co-capitán (plata), fantasma (ámbar)
-  // o jugador (sin insignia).
+  // Insignia de rol: capitán (ámbar), co-capitán (plata), fantasma (ámbar) o
+  // jugador (sin insignia).
   Widget _roleBadge() {
     late final String label;
     late final IconData? icon;
@@ -519,7 +511,7 @@ class _PlayerCard extends StatelessWidget {
     );
   }
 
-  // Botón redondo de acción, solo icono, con borde verde. Dentro del cromo.
+  // Botón redondo de acción (solo icono, borde verde), dentro del cromo.
   Widget _actionButton({
     required IconData icon,
     required Color color,

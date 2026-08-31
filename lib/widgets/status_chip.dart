@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
-// Chip de estado de un partido, reutilizable entre pantallas (Home, Matches...).
-// Vivía duplicado en cada pantalla; ahora es un único widget compartido.
-// Los colores salen de la paleta del tema, no de Colors.* de stock:
-//   Programado -> verde  (estado activo/positivo)
-//   En juego   -> ámbar  (atención: está pasando ahora)
+// Chip de estado de un partido, compartido entre pantallas (Home, Matches...).
+// Los colores salen de la paleta del tema:
+//   Programado -> verde (activo)
+//   En juego   -> ámbar (está pasando ahora)
 //   Jugado     -> tinta suave (neutro, terminado)
 class StatusChip extends StatelessWidget {
   final String status;

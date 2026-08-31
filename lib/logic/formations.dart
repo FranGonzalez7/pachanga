@@ -2,23 +2,21 @@ import 'dart:ui';
 
 // Catálogo de formaciones tácticas por tipo de partido.
 //
-// CONVENCIONES (importantes, el resto del código confía en ellas):
+// Convenciones (el resto del código confía en ellas):
 //
-// 1. Orden de las coordenadas = orden de los slots del equipo:
-//    portero primero, después de atrás hacia adelante, y dentro de
-//    cada línea de izquierda a derecha.
+// 1. El orden de las coordenadas es el orden de los slots del equipo: portero
+//    primero, luego de atrás hacia adelante, y dentro de cada línea de
+//    izquierda a derecha.
 //
-// 2. Coordenadas relativas entre 0 y 1:
-//    x: 0 = borde izquierdo del campo, 1 = borde derecho.
-//    y: 0 = borde superior, 1 = borde inferior.
-//    Así la formación se adapta a cualquier tamaño de pantalla.
+// 2. Coordenadas relativas entre 0 y 1 (x: 0 izquierda, 1 derecha; y: 0 arriba,
+//    1 abajo), para que la formación se adapte a cualquier tamaño de pantalla.
 //
-// 3. Todas las formaciones están definidas para un equipo que DEFIENDE
-//    la portería INFERIOR (portero abajo, ataca hacia arriba). Para el
-//    equipo que defiende arriba se aplica el espejo: y' = 1 - y.
+// 3. Todas están definidas para un equipo que defiende la portería inferior
+//    (portero abajo, ataca hacia arriba). El equipo que defiende arriba aplica
+//    el espejo: y' = 1 - y.
 //
-// Para ajustar una formación (adelantar laterales, abrir delanteros...)
-// basta con retocar los números de su lista. Nada más depende de ellos.
+// Ajustar una formación (adelantar laterales, abrir delanteros...) es solo
+// retocar los números de su lista; nada más depende de ellos.
 
 class Formation {
   final String name; // etiqueta visible, ej. "1-2-1"
@@ -148,17 +146,17 @@ const Map<String, List<Formation>> formationsByType = {
   ],
 };
 
-// Formación por defecto de cada tipo (la de un partido recién creado
-// o de uno antiguo que aún no tenga formación guardada).
+// Formación por defecto de cada tipo (partido recién creado, o antiguo que aún
+// no tenga formación guardada).
 const Map<String, String> defaultFormationByType = {
   '5v5': '1-2-1',
   '6v6': '2-2-1',
   '7v7': '3-1-2',
 };
 
-// Devuelve la formación de un tipo por su nombre. Si el nombre no existe
-// (dato corrupto, formación retirada del catálogo...), cae a la formación
-// por defecto del tipo; si el tipo tampoco existe, a la primera del catálogo.
+// Formación de un tipo por su nombre. Si el nombre no existe (dato corrupto,
+// formación retirada del catálogo...), cae a la por defecto del tipo; si el
+// tipo tampoco existe, a la primera del catálogo.
 Formation getFormation(String type, String name) {
   final formations = formationsByType[type] ?? formationsByType.values.first;
   return formations.firstWhere(

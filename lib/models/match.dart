@@ -3,7 +3,7 @@ import 'slot.dart';
 import '../logic/formations.dart';
 
 class Match {
-  // Valores que usamos para distinguir equipo en slot.team.
+  // Valores de slot.team para distinguir equipo.
   static const String teamA = 'A';
   static const String teamB = 'B';
 
@@ -16,16 +16,16 @@ class Match {
   final DateTime scheduledAt;
   final DateTime createdAt;
   final String location;
-  // Goles "a mano" por equipo: goles en propia del rival, ajustes de disputa...
-  // Empiezan en 0. NO confundir con teamAScore (ese es el marcador total).
+  // Goles "a mano" por equipo (goles en propia del rival, ajustes de disputa).
+  // No confundir con teamAScore, que es el marcador total.
   final int teamAExtraGoals;
   final int teamBExtraGoals;
-  // Formación táctica de cada equipo (nombre del catálogo, ej. "1-2-1").
-  // Solo afecta a DÓNDE se dibujan las burbujas, nunca a la puntuación.
+  // Formación de cada equipo (nombre del catálogo, ej. "1-2-1"). Solo afecta a
+  // dónde se dibujan las burbujas, nunca a la puntuación.
   final String formationA;
   final String formationB;
   final List<Slot> slots;
-  final Map<String, int> goals; // playerId del jugador -> goles en este partido
+  final Map<String, int> goals; // playerId -> goles en este partido
 
   Match({
     required this.matchId,
@@ -45,9 +45,9 @@ class Match {
     required this.goals,
   });
 
-  // --- Marcador DERIVADO: no se almacena, se calcula de los goles + el extra ---
+  // Marcador derivado: no se almacena, se calcula de los goles + el extra.
 
-  // Suma de goles de los jugadores de cada equipo (lo "con dueño").
+  // Suma de goles de los jugadores de cada equipo (los goles "con dueño").
   int get teamAGoalsFromPlayers {
     int total = 0;
     for (final slot in slots) {
@@ -70,9 +70,9 @@ class Match {
     return total;
   }
 
-  // ¿El partido quedó en el pasado? Criterio por DÍAS: uno de hoy sigue
-  // contando como próximo hasta que acabe el día, aunque su hora ya pasara
-  // (así no desaparece del Home mientras la gente va de camino al campo).
+  // ¿El partido quedó en el pasado? Criterio por días: uno de hoy sigue siendo
+  // próximo hasta que acabe el día, aunque su hora ya pasara (así no desaparece
+  // del Home mientras la gente va de camino al campo).
   bool get isPast {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -99,7 +99,7 @@ class Match {
       scheduledAt: (data['scheduledAt'] as Timestamp).toDate(),
       createdAt: (data['createdAt'] as Timestamp).toDate(),
       location: data['location'] as String? ?? '',
-      // ?? 0 para que los partidos viejos (sin estos campos) no rompan.
+      // ?? para que los partidos viejos (sin estos campos) no rompan.
       teamAExtraGoals: data['teamAExtraGoals'] as int? ?? 0,
       teamBExtraGoals: data['teamBExtraGoals'] as int? ?? 0,
       formationA:
@@ -127,7 +127,7 @@ class Match {
       'scheduledAt': Timestamp.fromDate(scheduledAt),
       'createdAt': Timestamp.fromDate(createdAt),
       'location': location,
-      // OJO: ya NO escribimos teamAScore/teamBScore, son derivados.
+      // No escribimos teamAScore/teamBScore: son derivados.
       'teamAExtraGoals': teamAExtraGoals,
       'teamBExtraGoals': teamBExtraGoals,
       'formationA': formationA,
@@ -137,7 +137,7 @@ class Match {
     };
   }
 
-  // Devuelve una copia del Match cambiando solo los campos indicados.
+  // Copia del Match cambiando solo los campos indicados.
   Match copyWith({
     String? matchId,
     String? groupId,

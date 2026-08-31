@@ -11,23 +11,22 @@ import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
 
 class FirestoreService {
-  // Referencia a la base de datos
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
 
-  // Crea (o sobrescribe) el documento de un usuario en la colección 'users'
+  // Crea o sobrescribe el documento de un usuario.
   Future<void> createUser(AppUser user) async {
     await _db.collection('users').doc(user.uid).set(user.toMap());
   }
 
-  // Lee el documento de un usuario por su uid; devuelve null si no existe
+  // Lee un usuario por su uid; null si no existe.
   Future<AppUser?> getUser(String uid) async {
     final doc = await _db.collection('users').doc(uid).get();
     if (!doc.exists) return null;
     return AppUser.fromMap(uid, doc.data()!);
   }
 
-  // Genera un código aleatorio de 6 caracteres (letras mayúsculas y números)
+  // Código de invitación: 6 caracteres alfanuméricos en mayúsculas.
   String _generateJoinCode() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     final random = Random();
@@ -37,9 +36,8 @@ class FirestoreService {
     ).join();
   }
 
-  // Crea un grupo nuevo y hace al creador capitán del mismo
+  // Crea un grupo y hace capitán a su creador.
   Future<Group> createGroup(String groupName, AppUser creator) async {
-    // Referencia a un nuevo documento en 'groups' (genera el ID automáticamente)
     final groupRef = _db.collection('groups').doc();
 
     final group = Group(
@@ -50,10 +48,8 @@ class FirestoreService {
       createdAt: DateTime.now(),
     );
 
-    // Guarda el grupo
     await groupRef.set(group.toMap());
 
-    // Crea la membresía del creador como capitán
     final membership = Membership(
       userId: creator.uid,
       groupId: group.groupId,
@@ -75,33 +71,29 @@ class FirestoreService {
     return group;
   }
 
-  // Lee un grupo por su ID; devuelve null si no existe
+  // Lee un grupo por su ID; null si no existe.
   Future<Group?> getGroup(String groupId) async {
     final doc = await _db.collection('groups').doc(groupId).get();
     if (!doc.exists) return null;
     return Group.fromMap(doc.id, doc.data()!);
   }
 
-  // Busca un grupo por su código y une al usuario como jugador.
-  // Devuelve el grupo si se unió con éxito, o null si el código no existe.
+  // Une al usuario a un grupo por su código. Devuelve el grupo, o null si el
+  // código no existe.
   Future<Group?> joinGroupByCode(String joinCode, AppUser user) async {
-    // Consulta: busca en 'groups' el documento cuyo joinCode coincida
     final query = await _db
         .collection('groups')
         .where('joinCode', isEqualTo: joinCode)
         .limit(1)
         .get();
 
-    // Si no hay resultados, el código no existe
     if (query.docs.isEmpty) {
       return null;
     }
 
-    // Reconstruimos el grupo a partir del documento encontrado
     final doc = query.docs.first;
     final group = Group.fromMap(doc.id, doc.data());
 
-    // Creamos la membresía del usuario como jugador
     final membership = Membership(
       userId: user.uid,
       groupId: group.groupId,
@@ -123,7 +115,7 @@ class FirestoreService {
     return group;
   }
 
-  // Devuelve la primera membresía del usuario, o null si no tiene ninguna.
+  // Primera membresía del usuario, o null si no tiene ninguna.
   Future<Membership?> getUserMembership(String uid) async {
     final query = await _db
         .collection('memberships')
@@ -138,7 +130,7 @@ class FirestoreService {
     return Membership.fromMap(query.docs.first.data());
   }
 
-  // Obtiene la membresía del usuario y su grupo de una vez
+  // Membresía del usuario y su grupo de una vez.
   Future<({Membership membership, Group group})?> getUserMembershipAndGroup(
     String uid,
   ) async {
@@ -151,7 +143,7 @@ class FirestoreService {
     return (membership: membership, group: group);
   }
 
-  // Devuelve todas las membresías de un grupo (sus jugadores)
+  // Todas las membresías de un grupo (sus jugadores).
   Future<List<Membership>> getGroupMembers(String groupId) async {
     final query = await _db
         .collection('memberships')
@@ -161,7 +153,7 @@ class FirestoreService {
     return query.docs.map((doc) => Membership.fromMap(doc.data())).toList();
   }
 
-  // Crea un partido nuevo en el grupo y devuelve el partido creado
+  // Crea un partido nuevo en el grupo y lo devuelve.
   Future<Match> createMatch({
     required String groupId,
     required String type,
@@ -192,32 +184,27 @@ class FirestoreService {
     return match;
   }
 
-  // Genera los huecos vacíos: teamSize por cada equipo (A y B), sin posición
+  // Huecos vacíos: teamSize por equipo (A y B), sin posición asignada.
   List<Slot> _generateEmptySlots(int teamSize) {
     final slots = <Slot>[];
     for (final team in ['A', 'B']) {
       for (int i = 0; i < teamSize; i++) {
         slots.add(
-          Slot(
-            team: team,
-            position: '', // vacía hasta que alguien se apunte y la elija
-            playerId: null,
-            playerName: null,
-          ),
+          Slot(team: team, position: '', playerId: null, playerName: null),
         );
       }
     }
     return slots;
   }
 
-  // Apunta a un jugador a un hueco concreto del partido, con una posición
+  // Coloca a un jugador en un hueco concreto, con su posición.
   Future<void> joinSlot({
     required String matchId,
     required int slotIndex,
     required String playerId,
     required String playerName,
     required String position,
-    String? photoUrl, // foto del jugador (puede no tener)
+    String? photoUrl,
   }) async {
     final matchRef = _db.collection('matches').doc(matchId);
     final doc = await matchRef.get();
@@ -226,7 +213,7 @@ class FirestoreService {
     final match = Match.fromMap(doc.id, doc.data()!);
     final updatedSlots = List<Slot>.from(match.slots);
 
-    // Primero: quitamos a este jugador de cualquier hueco que ya ocupara
+    // Lo quitamos de cualquier hueco que ya ocupara antes de recolocarlo.
     for (int i = 0; i < updatedSlots.length; i++) {
       if (updatedSlots[i].playerId == playerId) {
         updatedSlots[i] = updatedSlots[i].copyWith(
@@ -236,7 +223,6 @@ class FirestoreService {
       }
     }
 
-    // Después: lo colocamos en el hueco elegido
     updatedSlots[slotIndex] = updatedSlots[slotIndex].copyWith(
       playerId: playerId,
       playerName: playerName,
@@ -249,7 +235,7 @@ class FirestoreService {
     });
   }
 
-  // Devuelve los partidos de un grupo, ordenados por fecha
+  // Partidos de un grupo, ordenados por fecha.
   Future<List<Match>> getGroupMatches(String groupId) async {
     final query = await _db
         .collection('matches')
@@ -260,8 +246,8 @@ class FirestoreService {
     return query.docs.map((doc) => Match.fromMap(doc.id, doc.data())).toList();
   }
 
-  // Igual que getGroupMatches pero en tiempo real: emite la lista entera
-  // cada vez que cambia cualquier partido del grupo (estado, goles...).
+  // Como getGroupMatches pero en tiempo real: reemite la lista ante cualquier
+  // cambio en los partidos del grupo (estado, goles...).
   Stream<List<Match>> streamGroupMatches(String groupId) {
     return _db
         .collection('matches')
@@ -275,14 +261,14 @@ class FirestoreService {
         );
   }
 
-  // Lee un partido por su ID
+  // Lee un partido por su ID.
   Future<Match?> getMatch(String matchId) async {
     final doc = await _db.collection('matches').doc(matchId).get();
     if (!doc.exists) return null;
     return Match.fromMap(doc.id, doc.data()!);
   }
 
-  // Saca a quien esté en un hueco (lo vacía)
+  // Vacía un hueco concreto.
   Future<void> leaveSlot({
     required String matchId,
     required int slotIndex,
@@ -303,7 +289,7 @@ class FirestoreService {
     });
   }
 
-  // Vacía todos los huecos de un partido (mantiene la estructura de equipos)
+  // Vacía todos los huecos de un partido (mantiene la estructura de equipos).
   Future<void> clearAllSlots(String matchId) async {
     final matchRef = _db.collection('matches').doc(matchId);
     final doc = await matchRef.get();
@@ -319,22 +305,15 @@ class FirestoreService {
     });
   }
 
-  // Cambia la formación de un equipo. Dos modos según keepPlayers:
-  //
-  // - keepPlayers = false (por defecto): vacía los slots de ESE equipo, en la
-  //   misma escritura que cambia la formación. Nunca queda un estado intermedio
-  //   con la formación nueva y los jugadores aún en la vieja.
-  //
-  // - keepPlayers = true: solo cambia el nombre de la formación. Los slots ya
-  //   van en orden (portero primero, etc.), así que cada jugador conserva su
-  //   slot y el render lo recoloca en la coordenada de la nueva formación. Su
-  //   etiqueta de posición (la que cuenta para la puntuación) se respeta.
-  //
-  // El otro equipo nunca se toca. Solo permitido en partidos scheduled (red de
-  // seguridad; la interfaz ya limita el botón, pero el servicio no se fía).
+  // Cambia la formación de un equipo (el otro nunca se toca). Con keepPlayers
+  // en false vacía los huecos de ese equipo en la misma escritura, para no
+  // dejar un estado intermedio con la formación nueva y los jugadores en la
+  // vieja; con keepPlayers en true los conserva (los slots ya van en orden y el
+  // render los recoloca). Solo en partidos scheduled: red de seguridad, ya que
+  // la interfaz limita el botón pero el servicio no se fía.
   Future<void> setTeamFormation({
     required String matchId,
-    required String team, // Match.teamA o Match.teamB
+    required String team,
     required String formation,
     bool keepPlayers = false,
   }) async {
@@ -350,16 +329,13 @@ class FirestoreService {
       );
     }
 
-    // El nombre del campo depende del equipo.
     final formationField = team == Match.teamA ? 'formationA' : 'formationB';
 
-    // Mantener: solo cambiamos la formación, los jugadores se quedan.
     if (keepPlayers) {
       await matchRef.update({formationField: formation});
       return;
     }
 
-    // Vaciar: quitamos los huecos del equipo afectado; el otro ni se entera.
     final updatedSlots = match.slots.map((slot) {
       if (slot.team == team) {
         return slot.copyWith(clearPlayer: true, position: '');
@@ -373,24 +349,23 @@ class FirestoreService {
     });
   }
 
-  // Cambia el estado de un partido (scheduled, inProgress, played)
+  // Cambia el estado de un partido (scheduled, inProgress, played).
   Future<void> updateMatchStatus(String matchId, String status) async {
     await _db.collection('matches').doc(matchId).update({'status': status});
   }
 
-  // Devuelve un partido de inProgress a scheduled para corregir la alineación.
-  // La puntuación se reinicia, pero mantiene los slots: los jugadores siguen colocados, solo vuelven a ser
-  // editables. Operación destructiva: la puntuación registrada se pierde.
+  // Devuelve un partido de inProgress a scheduled para reeditar la alineación.
+  // Conserva los slots pero borra la puntuación: operación destructiva.
   Future<void> revertMatchToScheduled(String matchId) async {
     await _db.collection('matches').doc(matchId).update({
       'status': 'scheduled',
-      'goals': {}, // se borra toda la puntuación individual
+      'goals': {},
       'teamAExtraGoals': 0,
       'teamBExtraGoals': 0,
     });
   }
 
-  // Actualiza los goles de un jugador en un partido (cantidad puede ser +1 o -1)
+  // Fija los goles de un jugador en un partido.
   Future<void> updatePlayerGoals({
     required String matchId,
     required String playerId,
@@ -400,7 +375,9 @@ class FirestoreService {
     await matchRef.update({'goals.$playerId': newGoalCount});
   }
 
-  // Actualiza los goles "extra" de cada equipo (goles en propia del rival, ajustes de disputa). NO son goles de ningún jugador concreto: solo suben o bajan el marcador del equipo sin tocar los puntos individuales.
+  // Goles "extra" de cada equipo (goles en propia del rival, ajustes de
+  // disputa). No pertenecen a ningún jugador: mueven el marcador del equipo
+  // sin tocar los puntos individuales.
   Future<void> updateTeamExtraGoals({
     required String matchId,
     required int teamAExtraGoals,
@@ -414,30 +391,27 @@ class FirestoreService {
   }
 
   // Termina un partido: calcula los puntos de cada jugador, actualiza sus
-  // estadísticas (puntos, goles, victorias/derrotas, partidos jugados) y marca
-  // el partido como 'played'. Todo en un batch atómico. Operación irreversible.
+  // estadísticas y marca el partido como 'played'. Todo en un batch atómico e
+  // irreversible.
   Future<void> finishMatch(Match match) async {
-    // Puntos de este partido (lógica pura).
     final pointsPerPlayer = calculateMatchPoints(match);
 
     final batch = _db.batch();
 
-    // Marcador final, para determinar quién ganó/perdió.
     final scoreA = match.teamAScore;
     final scoreB = match.teamBScore;
 
     for (final slot in match.slots) {
       final playerId = slot.playerId;
-      if (playerId == null) continue; // hueco vacío
+      if (playerId == null) continue;
 
-      // Resultado de ESTE jugador según su equipo.
+      // Resultado de este jugador según su equipo (empate = ni gana ni pierde).
       final isTeamA = slot.team == Match.teamA;
       final myScore = isTeamA ? scoreA : scoreB;
       final rivalScore = isTeamA ? scoreB : scoreA;
 
       final didWin = myScore > rivalScore;
       final didLose = myScore < rivalScore;
-      // (empate: ni una cosa ni la otra)
 
       final goalsScored = match.goals[playerId] ?? 0;
       final matchPoints = pointsPerPlayer[playerId] ?? 0;
@@ -451,7 +425,7 @@ class FirestoreService {
 
       final membership = Membership.fromMap(membershipDoc.data()!);
 
-      // Nuevos totales (puntos con suelo en 0; el resto solo suman).
+      // Puntos con suelo en 0; el resto de totales solo suman.
       final newPoints = (membership.points + matchPoints).clamp(0, 1 << 31);
       final newGoals = membership.goals + goalsScored;
       final newWins = membership.wins + (didWin ? 1 : 0);
@@ -467,73 +441,65 @@ class FirestoreService {
       });
     }
 
-    // El partido pasa a 'played'.
     final matchRef = _db.collection('matches').doc(match.matchId);
     batch.update(matchRef, {'status': 'played'});
 
     await batch.commit();
   }
 
-  // Calcula la posición de un usuario en la clasificación del grupo por puntos.
-  // Devuelve (posición, total de miembros). Posición 1 = líder.
+  // Posición del usuario en la clasificación del grupo por puntos. Devuelve
+  // (posición, total); posición 1 = líder.
   Future<({int position, int total})> getUserRanking(
     String userId,
     String groupId,
   ) async {
     final members = await getGroupMembers(groupId);
 
-    // Ordenamos por puntos de mayor a menor.
     members.sort((a, b) => b.points.compareTo(a.points));
 
-    // Buscamos en qué lugar cae el usuario.
     final index = members.indexWhere((m) => m.userId == userId);
 
-    // index es 0-based; la posición para mostrar es index + 1.
+    // index es 0-based; la posición a mostrar es index + 1.
     return (position: index + 1, total: members.length);
   }
 
-  // Devuelve los miembros del grupo ordenados por puntos (mayor a menor),
-  // desempatando por goles. Útil para clasificaciones y podios.
+  // Miembros del grupo ordenados por puntos (desc), desempatando por goles.
   Future<List<Membership>> getGroupRanking(String groupId) async {
     final members = await getGroupMembers(groupId);
 
     members.sort((a, b) {
-      // Primer criterio: puntos (descendente).
       final byPoints = b.points.compareTo(a.points);
       if (byPoints != 0) return byPoints;
-      // Desempate: goles (descendente).
       return b.goals.compareTo(a.goals);
     });
 
     return members;
   }
 
-  // Crea un jugador fantasma: una membresía sin cuenta asociada, creada
-  // por el capitán para alguien que no usa la app. Tiene su propio id
-  // generado (no viene de Auth), empieza con la puntuación base y stats a 0.
+  // Crea un jugador fantasma: una membresía sin cuenta que crea el capitán para
+  // alguien que no usa la app. Tiene un id propio (no de Auth), la puntuación
+  // base y stats a 0.
   Future<Membership> createGhostPlayer({
     required String groupId,
     required String displayName,
   }) async {
-    // Generamos un id único para el fantasma (no hay uid de Auth).
-    // Pedimos un id automático a Firestore, como en createGroup.
+    // Id automático de Firestore, ya que no hay uid de Auth.
     final ghostId = _db.collection('memberships').doc().id;
 
     final membership = Membership(
       userId: ghostId,
       groupId: groupId,
-      role: 'player', // un fantasma nunca es capitán
+      role: 'player',
       displayName: displayName,
-      points: 100, // misma base que cualquier jugador
+      points: 100,
       goals: 0,
       wins: 0,
       losses: 0,
       matchesPlayed: 0,
       joinedAt: DateTime.now(),
-      isGhost: true, // <-- lo que lo marca como fantasma
+      isGhost: true,
     );
 
-    // El id del documento sigue tu patrón: userId_groupId.
     await _db
         .collection('memberships')
         .doc('${ghostId}_$groupId')
@@ -542,15 +508,14 @@ class FirestoreService {
     return membership;
   }
 
-  // Cambia el rol de un miembro del grupo: co-capitán o jugador.
-  // Solo cambia ENTRE esos dos; al capitán no se le toca por aquí (red de
-  // seguridad: nunca degradamos al capitán ni ascendemos a nadie a capitán).
+  // Cambia el rol de un miembro entre co-capitán y jugador. Al capitán no se le
+  // toca desde aquí, y un fantasma no puede ser co-capitán (no tiene cuenta con
+  // la que entrar): red de seguridad más allá de lo que ya limita la interfaz.
   Future<void> setMemberRole({
     required String userId,
     required String groupId,
     required String role,
   }) async {
-    // Solo aceptamos los dos roles delegables.
     if (role != Membership.roleCoCaptain && role != Membership.rolePlayer) {
       throw Exception('Rol no permitido: $role');
     }
@@ -564,8 +529,6 @@ class FirestoreService {
 
     final member = Membership.fromMap(doc.data()!);
 
-    // Al capitán no se le cambia el rol desde aquí, y un fantasma no puede
-    // ejercer de co-capitán (no tiene cuenta con la que entrar).
     if (member.isCaptain) {
       throw Exception('No se puede cambiar el rol del capitán.');
     }
@@ -576,13 +539,10 @@ class FirestoreService {
     await membershipRef.update({'role': role});
   }
 
-  // Cambia el nombre del usuario CON CUENTA en los tres sitios donde vive:
-  // su perfil global (users), su membresía del grupo y el playerName de los
-  // slots de todos sus partidos. Todo en un batch atómico: o se aplica todo,
-  // o nada (nunca queda el nombre viejo colgando en un campo).
-  //
-  // Es el hermano de updateGhostName: la diferencia es el paso 1, porque un
-  // fantasma no tiene documento en 'users'.
+  // Cambia el nombre de un usuario con cuenta en los tres sitios donde vive:
+  // perfil global (users), membresía del grupo y playerName de los slots de sus
+  // partidos. Batch atómico. Hermano de updateGhostName, salvo por el paso del
+  // perfil global (un fantasma no lo tiene).
   Future<void> updateUserName({
     required String userId,
     required String groupId,
@@ -590,18 +550,14 @@ class FirestoreService {
   }) async {
     final batch = _db.batch();
 
-    // 1. El nombre en el perfil global del usuario.
     final userRef = _db.collection('users').doc(userId);
     batch.update(userRef, {'displayName': newName});
 
-    // 2. El nombre en su membresía del grupo.
     final membershipRef = _db
         .collection('memberships')
         .doc('${userId}_$groupId');
     batch.update(membershipRef, {'displayName': newName});
 
-    // 3. El nombre en los slots de sus partidos (pieza reutilizable, la
-    //    misma que usan los fantasmas).
     await _addPlayerNameUpdatesToBatch(
       batch: batch,
       userId: userId,
@@ -612,9 +568,8 @@ class FirestoreService {
     await batch.commit();
   }
 
-  // Actualiza el nombre de un jugador fantasma: en su membresía Y en los
-  // slots de todos los partidos donde aparezca, para que no quede el nombre
-  // viejo colgando en el campo. Todo en un batch atómico.
+  // Cambia el nombre de un fantasma en su membresía y en los slots de sus
+  // partidos. Batch atómico.
   Future<void> updateGhostName({
     required String userId,
     required String groupId,
@@ -622,13 +577,11 @@ class FirestoreService {
   }) async {
     final batch = _db.batch();
 
-    // 1. El nombre en la membresía del fantasma.
     final membershipRef = _db
         .collection('memberships')
         .doc('${userId}_$groupId');
     batch.update(membershipRef, {'displayName': newName});
 
-    // 2. El nombre en los slots de sus partidos (pieza reutilizable).
     await _addPlayerNameUpdatesToBatch(
       batch: batch,
       userId: userId,
@@ -639,18 +592,17 @@ class FirestoreService {
     await batch.commit();
   }
 
-  // Añade a un batch las actualizaciones necesarias para cambiar el
-  // playerName de un jugador en los slots de TODOS sus partidos del grupo.
-  // No hace commit: el que llama decide cuándo. Así se reutiliza para
-  // fantasmas y, en el futuro, para jugadores con cuenta.
+  // Añade a un batch (sin hacer commit) el cambio de playerName de un jugador
+  // en los slots de todos sus partidos del grupo. Pieza reutilizable por
+  // fantasmas y usuarios con cuenta.
   Future<void> _addPlayerNameUpdatesToBatch({
     required WriteBatch batch,
     required String userId,
     required String groupId,
     required String newName,
   }) async {
-    // Todos los partidos del grupo (cualquier estado: el nombre es una
-    // etiqueta, se actualiza también en el histórico).
+    // Todos los partidos, en cualquier estado: el nombre también se actualiza
+    // en el histórico.
     final matches = await _db
         .collection('matches')
         .where('groupId', isEqualTo: groupId)
@@ -659,11 +611,9 @@ class FirestoreService {
     for (final doc in matches.docs) {
       final match = Match.fromMap(doc.id, doc.data());
 
-      // ¿Aparece este jugador en algún slot de este partido?
       final isInMatch = match.slots.any((s) => s.playerId == userId);
-      if (!isInMatch) continue; // si no está, no tocamos este partido
+      if (!isInMatch) continue;
 
-      // Reescribimos sus slots con el nombre nuevo (el resto, igual).
       final updatedSlots = match.slots.map((slot) {
         if (slot.playerId == userId) {
           return slot.copyWith(playerName: newName);
@@ -677,34 +627,29 @@ class FirestoreService {
     }
   }
 
-  // Elimina la membresía de un jugador del grupo (lo "echa").
-  // Borrado suave: los partidos ya jugados (played) conservan su rastro
-  // intacto. Pero en los partidos SCHEDULED (aún por jugar) se libera el
-  // hueco que ocupaba, porque ya no debería contar para algo futuro.
-  // Los partidos inProgress se dejan en paz (su alineación está congelada).
-  // Todo en un batch atómico: o se aplica todo, o nada.
+  // Elimina la membresía de un jugador del grupo. Borrado suave: los partidos
+  // jugados conservan su rastro; en los scheduled se libera el hueco que
+  // ocupaba; los inProgress se dejan en paz (alineación congelada). Batch
+  // atómico.
   Future<void> removeMembership({
     required String userId,
     required String groupId,
   }) async {
     final batch = _db.batch();
 
-    // 1. Buscamos los partidos SCHEDULED del grupo.
     final scheduledMatches = await _db
         .collection('matches')
         .where('groupId', isEqualTo: groupId)
         .where('status', isEqualTo: 'scheduled')
         .get();
 
-    // 2. En cada uno, si el jugador ocupa algún slot, lo liberamos.
+    // En cada partido scheduled, si ocupa algún slot, lo liberamos.
     for (final doc in scheduledMatches.docs) {
       final match = Match.fromMap(doc.id, doc.data());
 
-      // ¿Está este jugador en algún slot de este partido?
       final isInMatch = match.slots.any((s) => s.playerId == userId);
-      if (!isInMatch) continue; // si no está, no tocamos este partido
+      if (!isInMatch) continue;
 
-      // Vaciamos los slots que ocupaba (deja el hueco libre y sin posición).
       final updatedSlots = match.slots.map((slot) {
         if (slot.playerId == userId) {
           return slot.copyWith(clearPlayer: true, position: '');
@@ -712,40 +657,35 @@ class FirestoreService {
         return slot;
       }).toList();
 
-      // Preparamos la actualización de los slots de este partido.
       batch.update(doc.reference, {
         'slots': updatedSlots.map((s) => s.toMap()).toList(),
       });
     }
 
-    // 3. Borramos la membresía (id determinista userId_groupId).
     final membershipRef = _db
         .collection('memberships')
         .doc('${userId}_$groupId');
     batch.delete(membershipRef);
 
-    // 4. Commit: slots liberados + membresía borrada, todo de golpe.
     await batch.commit();
   }
 
-  // Elimina un partido. Solo permitido si NO está jugado (played), porque
-  // un partido jugado ya repartió puntos y borrarlo dejaría stats huérfanas.
-  // La interfaz ya oculta la opción en played; esto es una red de seguridad.
+  // Elimina un partido, salvo que esté jugado (ya repartió puntos y borrarlo
+  // dejaría stats huérfanas). La interfaz ya oculta la opción; esto es la red
+  // de seguridad.
   Future<void> deleteMatch(String matchId) async {
     final doc = await _db.collection('matches').doc(matchId).get();
     if (!doc.exists) return;
 
     final status = doc.data()!['status'] as String;
     if (status == 'played') {
-      // No borramos partidos jugados: sus puntos ya están repartidos.
       throw Exception('No se puede eliminar un partido ya jugado.');
     }
 
     await _db.collection('matches').doc(matchId).delete();
   }
 
-  // Actualiza lugar, fecha y hora de un partido. Solo permitido si está
-  // scheduled (un partido en juego o jugado no se re-agenda).
+  // Actualiza lugar, fecha y hora de un partido. Solo si está scheduled.
   Future<void> updateMatchDetails({
     required String matchId,
     required DateTime scheduledAt,
@@ -765,30 +705,20 @@ class FirestoreService {
     });
   }
 
-  // Sube una foto de perfil a Storage y guarda su URL en el Membership.
-  // Recibe el archivo ya elegido por la UI (la selección necesita contexto
-  // de pantalla, así que vive allí; aquí solo subimos y guardamos).
-  //
-  // Ruta en Storage: avatars/{userId}/avatar.jpg  -> un nombre FIJO por
-  // usuario, así cada foto nueva SOBREESCRIBE la anterior y no acumulamos
-  // basura (si el nombre fuera aleatorio, cada cambio dejaría la vieja).
+  // Sube una foto de perfil a Storage y guarda su URL en el Membership. Recibe
+  // el archivo ya elegido por la UI. Ruta fija avatars/{userId}/avatar.jpg: cada
+  // foto nueva sobrescribe la anterior, así no se acumula basura.
   Future<String> uploadProfilePhoto({
     required String userId,
     required String groupId,
     required File imageFile,
   }) async {
-    // 1. Referencia al hueco del usuario en Storage.
     final ref = _storage.ref().child('avatars/$userId/avatar.jpg');
 
-    // 2. Subimos el archivo. putFile devuelve una tarea que esperamos.
     await ref.putFile(imageFile, SettableMetadata(contentType: 'image/jpeg'));
 
-    // 3. Obtenemos la URL pública de descarga (la que guardaremos y usará
-    //    la app para pintar el avatar).
     final downloadUrl = await ref.getDownloadURL();
 
-    // 4. Guardamos la URL en el Membership (donde la lee toda la app).
-    //    Reutilizamos el patrón de siempre: escritura directa al doc.
     final membershipRef = _db
         .collection('memberships')
         .doc('${userId}_$groupId');

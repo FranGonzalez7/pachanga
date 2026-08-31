@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
-// Título de AppBar con el balón de Pachanga delante del texto.
-// Reutilizable: cada pantalla le pasa su propio texto (nombre del grupo,
-// "Partidos", "Jugadores"...) y el balón es común a todas. El color del
-// texto lo hereda del appBarTheme; el balón lo fijamos en verde de marca.
+// Título de AppBar con el balón de Pachanga delante del texto. Cada pantalla le
+// pasa su propio texto (nombre del grupo, "Partidos", "Jugadores"...) y el balón
+// es común. El color del texto lo hereda del appBarTheme; el balón va en verde.
 class AppBarTitle extends StatelessWidget {
   final String text;
 

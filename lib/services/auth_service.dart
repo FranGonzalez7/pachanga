@@ -6,13 +6,13 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirestoreService _firestoreService = FirestoreService();
 
-  // El "canal de radio": emite quién está logueado y reacciona a los cambios
+  // Emite quién está logueado y reacciona a los cambios de sesión.
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
-  // El usuario actual ahora mismo (o null si no hay nadie)
+  // Usuario actual, o null si no hay sesión.
   User? get currentUser => _auth.currentUser;
 
-  // REGISTRO: crear una cuenta nueva con nombre, correo y contraseña
+  // Crea una cuenta nueva y su documento de usuario en Firestore.
   Future<User?> signUp(
     String email,
     String password,
@@ -39,7 +39,7 @@ class AuthService {
     return user;
   }
 
-  // LOGIN: iniciar sesión con una cuenta que ya existe
+  // Inicia sesión con una cuenta existente.
   Future<User?> signIn(String email, String password) async {
     final credential = await _auth.signInWithEmailAndPassword(
       email: email,
@@ -48,7 +48,7 @@ class AuthService {
     return credential.user;
   }
 
-  // LOGOUT: cerrar la sesión actual
+  // Cierra la sesión actual.
   Future<void> signOut() async {
     await _auth.signOut();
   }
